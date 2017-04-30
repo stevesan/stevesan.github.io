@@ -1,0 +1,9 @@
+{
+"TOTAL_MEMORY": 268435456,
+"dataUrl": "stevesan.github.io.data.unityweb",
+"asmCodeUrl": "stevesan.github.io.asm.code.unityweb",
+"asmMemoryUrl": "stevesan.github.io.asm.memory.unityweb",
+"asmFrameworkUrl": "stevesan.github.io.asm.framework.unityweb",
+"splashScreenStyle": "Dark",
+"backgroundColor": "#929292"
+}
