@@ -1,0 +1,12 @@
+{
+"companyName": "Steven An",
+"productName": "Space Ninjas",
+"dataUrl": "spaceninjas.data.unityweb",
+"wasmCodeUrl": "spaceninjas.wasm.code.unityweb",
+"wasmFrameworkUrl": "spaceninjas.wasm.framework.unityweb",
+"TOTAL_MEMORY": 268435456,
+"graphicsAPI": ["WebGL 2.0", "WebGL 1.0"],
+"webglContextAttributes": {"preserveDrawingBuffer": false},
+"splashScreenStyle": "Dark",
+"backgroundColor": "#929292"
+}
