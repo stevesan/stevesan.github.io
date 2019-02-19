@@ -3,16 +3,36 @@
 
 <head>
   <meta charset="UTF-8" />
-  <title>hello phaser!</title>
+  <title>Space Ninjas - Phaser prototype</title>
   <script src="//cdn.jsdelivr.net/phaser/2.5.0/phaser.min.js"></script>
+
+  <script src="MathUtil.js"></script>
   <script src="AssetUtil.js"></script>
   <script src="PhysicsUtil.js"></script>
-  <script src="NinjaControls.js"></script>
+
+  <script src="Levels.js"></script>
+  <script src="GameObject.js"></script>
+  <script src="EnvObjects.js"></script>
+  <script src="NinjaPlayer.js"></script>
+  <script src="Turret.js"></script>
+
   <script src="main.js"></script>
 </head>
 
 <body>
 
+  <div id="phaserOutput"></div>
+  <p>
+    Bugs/TODO:
+    <ol>
+      <li>Overall game flow</li>
+      <li>BUG: Can dash past a single hard block</li>
+      <li>Bull enemy (raycast for clearance)</li>
+      <li>Smart-bomb enemy</li>
+      <li>Do this: https://www.belenalbeza.com/articles/retro-crisp-pixel-art-in-phaser/</li>
+      <li>Put in better font</li>
+    </ol>
+  </p>
 </body>
 
 </html>
