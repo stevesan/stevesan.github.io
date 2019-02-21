@@ -47,8 +47,6 @@ class Turret extends GameObject {
     super(scene, x, y, 'powerup', 1);
     scene.enemies.add(this);
     this.anchor.set(0.5, 0.5);
-    this.scale.setTo(2, 2);
-    this.game = game;
     this.cooldown = Math.random() * COOLDOWN_S;
 
     game.physics.arcade.enable(this);
@@ -70,12 +68,13 @@ class Turret extends GameObject {
     // TODO effectively disable ourselves if player is not visible
     this.cooldown -= this.game.time.physicsElapsed;
     if (this.cooldown < 0) {
-      const bullet = new TurretBullet(this.scene, this.x, this.y);
-
-      const player = this.scene.player;
-      const velocity = fromTo(this, player);
-      velocity.setMagnitude(100);
-      bullet.body.velocity.copyFrom(velocity);
+      if (this.inCamera) {
+        const bullet = new TurretBullet(this.scene, this.x, this.y);
+        const player = this.scene.player;
+        const velocity = fromTo(this, player);
+        velocity.setMagnitude(100);
+        bullet.body.velocity.copyFrom(velocity);
+      }
       this.cooldown = COOLDOWN_S;
     }
   }

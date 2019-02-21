@@ -15,6 +15,7 @@ class GameScene {
     this.levelIndex = 0;
     this.phaserGame = phaserGame;
 
+
     // Sprite arrays
     /** @type {Phaser.Group} */
     this.environment = phaserGame.add.group();
@@ -23,13 +24,41 @@ class GameScene {
     /** @type {Phaser.Group} */
     this.bullets = phaserGame.add.group();
 
+    // Use this group to make sure all game objects always render under the HUD (created later)
+    this.gameGroup = phaserGame.add.group();
+    this.gameGroup.add(this.environment);
+    this.gameGroup.add(this.enemies);
+    this.gameGroup.add(this.bullets);
+
     /** @type {NinjaPlayer} */
     this.player = null;
 
     this.spawnScene(LEVELS[this.levelIndex]);
 
-    this.hudText = game.add.text(game.camera.x + 10, game.camera.y + 10, 'dd', { font: 'Courier New', fontSize: '24px', fill: '#fff' });
+    this.map = game.add.tilemap('level_base');
+    this.map.addTilesetImage('inca_front', 'inca32');
+    this.mapLayer = this.map.createLayer('Tile Layer 1');
+    this.map.setCollisionByExclusion([], true, this.mapLayer);
+    this.mapLayer.resizeWorld();
+
+    this.hudText = game.add.text(game.camera.x, game.camera.y + 15, 'dd',
+      {
+        font: 'Courier New',
+        fontSize: '24px',
+        fill: '#fff',
+        boundsAlignH: 'center'
+      });
+    this.hudText.setTextBounds(0, 0, game.camera.width, game.camera.height);
+    this.hudText.setShadow(2, 2, 'rgba(0,0,0,0.5)', 2);
     this.hudText.fixedToCamera = true;
+
+    // TEMP
+    /** @type {Phaser.Tilemap} */
+    const wave = game.add.tilemap('wave0');
+    const propMap = createPropertiesByGid(wave);
+    wave.objects['objects'].forEach(obj => {
+      console.log(propMap.get(obj.gid));
+    });
 
     this.setupKeys();
   }
@@ -43,19 +72,25 @@ class GameScene {
       goRight: Phaser.Keyboard.D,
     });
 
-    keys.goUp.onDown.add(() => this.player.onDirPressed(0));
-    keys.goLeft.onDown.add(() => this.player.onDirPressed(1));
-    keys.goDown.onDown.add(() => this.player.onDirPressed(2));
-    keys.goRight.onDown.add(() => this.player.onDirPressed(3));
+    keys.goUp.onDown.add(() => this.onDirPressed_(0));
+    keys.goLeft.onDown.add(() => this.onDirPressed_(1));
+    keys.goDown.onDown.add(() => this.onDirPressed_(2));
+    keys.goRight.onDown.add(() => this.onDirPressed_(3));
+  }
+
+  onDirPressed_(dir) {
+    if (this.state == 'playing') {
+      this.player.onDirPressed(dir);
+    }
   }
 
   updateHud() {
     if (this.state == 'playing') {
-      this.hudText.text = "HP: ";
-      for (let i = 0; i < scene.player.getHealth(); i++) {
-        this.hudText.text += "O";
-      }
-      this.hudText.text += `\n${scene.enemies.countLiving()} enemies left`;
+      // this.hudText.text = "HP: ";
+      // for (let i = 0; i < scene.player.getHealth(); i++) {
+      // this.hudText.text += "O";
+      // }
+      this.hudText.text = `${scene.enemies.countLiving()} enemies left`;
     }
   }
 
@@ -72,17 +107,6 @@ class GameScene {
     const PPT = 32;
     const left = snap(game.world.width / 2 - sideLen / 2 * PPT, 32);
     const top = snap(game.world.height / 2 - sideLen / 2 * PPT, 32);
-    const bot = top + sideLen * PPT;
-    const right = left + sideLen * PPT;
-    const plop = (x, y) => {
-      new StaticEnv(this, x, y, 'inca32', 4);
-    }
-    for (let i = 0; i < sideLen; i++) {
-      plop(left + i * PPT, top - PPT);
-      plop(left + i * PPT, bot);
-      plop(left - PPT, top + i * PPT);
-      plop(right, top + i * PPT);
-    }
 
     for (let i = 0; i < levelString.length; i++) {
       const c = levelString.charAt(i);
@@ -121,18 +145,26 @@ class GameScene {
     this.environment = this.phaserGame.add.group();
     this.enemies = this.phaserGame.add.group();
     this.bullets = this.phaserGame.add.group();
+
+    this.gameGroup.add(this.environment);
+    this.gameGroup.add(this.enemies);
+    this.gameGroup.add(this.bullets);
+
     this.player = null;
 
   }
 
   countdownToLevel(ms) {
+    wasd.visible = this.levelIndex == 0;
     this.state = 'countdown';
-    this.hudText.text = 'Get ready..'
+    this.phaserGame.stage.backgroundColor = '#1e0020';
     this.clear();
     this.spawnScene(LEVELS[this.levelIndex]);
+    this.hudText.text = 'Get ready..'
     triggerSlowMo(100, ms);
     this.phaserGame.time.events.add(ms, () => {
       this.state = 'playing';
+      this.phaserGame.stage.backgroundColor = '#2e0e39';
     });
   }
 
@@ -145,25 +177,30 @@ class GameScene {
     this.myCollide(this.enemies, this.environment);
     this.myCollide(this.bullets, this.environment);
 
+    this.myCollide(this.player, this.mapLayer);
+
     if (this.state == 'playing') {
       if (this.enemies.countLiving() == 0) {
         this.state = 'intermission';
         this.hudText.text = '!! LEVEL CLEAR !!';
+        this.phaserGame.stage.backgroundColor = '#1e4e54';
         addShake(50, 50);
-        triggerSlowMo(5, 3000);
+        triggerSlowMo(5, 1500);
         this.levelIndex++;
-        this.phaserGame.time.events.add(3000, () => {
-          this.countdownToLevel(3000);
+        this.phaserGame.time.events.add(1500, () => {
+          this.countdownToLevel(1500);
         });
       }
 
       if (this.player.getHealth() <= 0) {
         this.state = 'gameover';
         this.hudText.text = '!! GAME OVER !!';
+        this.phaserGame.stage.backgroundColor = '#1e0020';
+
         addShake(10, 10);
-        triggerSlowMo(5, 2000);
-        this.phaserGame.time.events.add(2000, () => {
-          this.countdownToLevel(0);
+        triggerSlowMo(5, 1500);
+        this.phaserGame.time.events.add(1500, () => {
+          this.countdownToLevel(500);
         })
       }
     }
@@ -173,15 +210,15 @@ class GameScene {
     const arcadePhysics = this.phaserGame.physics.arcade;
     arcadePhysics.collide(aa, bb,
       (a, b) => {
-        a.onCollide(b);
-        b.onCollide(a);
+        if (a.onCollide) a.onCollide(b);
+        if (b.onCollide) b.onCollide(a);
       },
       (a, b) => {
         // If either one wants to ignore, then by convention, we ignore.
-        if (a.onOverlap(b) === false) {
+        if (a.onOverlap && a.onOverlap(b) === false) {
           return false;
         }
-        if (b.onOverlap(a) === false) {
+        if (b.onOverlap && b.onOverlap(a) === false) {
           return false;
         }
         return true;
@@ -201,6 +238,8 @@ var scoreFx;
 var shakeX = 0;
 var shakeY = 0;
 
+let wasd;
+
 function preload() {
   PRELOAD_CREATE_LIST.forEach(asset => asset.preload());
   // TODO have these preloads be declared in the Object files, like audio.
@@ -208,15 +247,16 @@ function preload() {
   game.load.image('star', 'phaser_tutorial_02/assets/star.png');
   game.load.image('baddie', 'phaser_tutorial_02/assets/baddie.png');
   game.load.spritesheet('dude', 'phaser_tutorial_02/assets/dude.png', 32, 48);
-  game.load.spritesheet('ninja', 'sprites/ninja-sheet.png', 16, 32);
+  game.load.spritesheet('ninja', 'sprites/ninja-sheet.png', 32, 64);
   game.load.spritesheet('inca32', 'sprites/inca_front.png', 32, 32);
-  game.load.spritesheet('powerup', 'sprites/Spaceship-shooter-environment/spritesheets/power-up.png', 16, 16);
+  game.load.spritesheet('powerup', 'sprites/Spaceship-shooter-environment/spritesheets/power-up.png', 32, 32);
   game.load.spritesheet('shots', 'sprites/Spaceship-shooter-environment/spritesheets/laser-bolts.png', 16, 16);
   game.load.image('turret', 'sprites/topdown_shooter/guns/cannon/cannon_down.png');
   game.load.image('cannonball', 'sprites/topdown_shooter/other/cannonball.png')
-}
 
-const coinAudio = new PreloadedAudio("wavs/coin.wav");
+  game.load.tilemap('level_base', 'tilemaps/level_base.json', null, Phaser.Tilemap.TILED_JSON);
+  game.load.tilemap('wave0', 'tilemaps/wave0.json', null, Phaser.Tilemap.TILED_JSON);
+}
 
 function create() {
   game.stage.backgroundColor = '#2e0e39';
@@ -224,15 +264,16 @@ function create() {
   PRELOAD_CREATE_LIST.forEach(asset => asset.create());
   game.physics.startSystem(Phaser.Physics.ARCADE);
 
-  game.add.text(game.world.width / 2 - 100, game.world.height / 2 - 140,
+  wasd = game.add.text(game.world.width / 2 - 100, game.world.height / 2 + 100,
     'Tap WASD to fly\nDouble-tap to dash', { font: 'Courier New', fontSize: '24px', fill: '#fff' });
-
+  wasd.setShadow(3, 3, '#000', 2);
 
   scoreFx = game.add.emitter(0, 0, 100);
   scoreFx.makeParticles('star');
   scoreFx.gravity = 200;
 
   scene = new GameScene(game);
+
 }
 
 function hitPause(durationMs) {
@@ -278,7 +319,6 @@ function updateCamera() {
 
   // MINOR BUG: camera fidgets in non-pleasing way when you run into a wall..
   // TODO: we should snap this to our retro-pixel size
-  const shakeWave = Math.sin(Date.now() / 1000 * 2 * Math.PI * 10);
 
   const player = scene.player;
   if (player) {
@@ -290,7 +330,7 @@ function updateCamera() {
 
 function render() {
   // game.debug.rectangle(player.getBounds(), '#ff0000', false);
-  // game.debug.body(player);
+  // game.debug.body(scene.player);
   // const t = player.body.touching;
   // game.debug.text(`body touch: ${t['up'] ? 'u' : ' '}${t['left'] ? 'l' : ' '}${t['down'] ? 'd' : ' '}${t['right'] ? 'r' : ' '}`, 0, 50);
 }
