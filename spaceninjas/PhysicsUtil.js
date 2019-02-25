@@ -35,6 +35,14 @@ function getTouchingDir(body) {
   return null;
 }
 
+function getBlockedDir(body) {
+  if (body.blocked['up']) return 0;
+  if (body.blocked['left']) return 1;
+  if (body.blocked['down']) return 2;
+  if (body.blocked['right']) return 3;
+  return null;
+}
+
 class WasBlockedTracker {
   /**
    * 
@@ -60,7 +68,7 @@ class WasBlockedTracker {
       || this.wasJustBlocked(3);
   }
 
-  updateWas() {
+  update() {
     for (let i = 0; i < 4; i++) {
       this.wasBlocked[i] = this.body.blocked[DIR_STRINGS[i]];
     }

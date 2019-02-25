@@ -5,6 +5,48 @@ const S = 1;
 const CANVAS_PIXELS_PER_SPRITE_PIXEL = 2;
 const CPPSP = CANVAS_PIXELS_PER_SPRITE_PIXEL;
 
+const waitBgColor = '#0e0020';
+
+const LEVEL_TILEMAP_KEYS = ['wave0', 'wave1', 'wave2'];
+const TILESET_SHEET_KEYS = ['inca_front', 'inca_back', 'inca_back2'];
+
+function preloadTilesets() {
+  TILESET_SHEET_KEYS.forEach(key => {
+    game.load.spritesheet(key, `sprites/tilesets/${key}.png`, 32, 32);
+  })
+}
+
+function preload() {
+  PRELOAD_CREATE_LIST.forEach(asset => asset.preload());
+  preloadTilesets();
+  // TODO have these preloads be declared in the Object files, like audio.
+  game.load.image('ground', 'phaser_tutorial_02/assets/platform.png');
+  game.load.image('star', 'phaser_tutorial_02/assets/star.png');
+  game.load.image('baddie', 'phaser_tutorial_02/assets/baddie.png');
+  game.load.spritesheet('dude', 'phaser_tutorial_02/assets/dude.png', 32, 48);
+  game.load.spritesheet('ninja', 'sprites/ninja-sheet.png', 32, 64);
+  game.load.spritesheet('powerup', 'sprites/Spaceship-shooter-environment/spritesheets/power-up.png', 32, 32);
+  game.load.spritesheet('shots', 'sprites/Spaceship-shooter-environment/spritesheets/laser-bolts.png', 16, 16);
+  game.load.image('turret', 'sprites/topdown_shooter/guns/cannon/cannon_down.png');
+  game.load.image('cannonball', 'sprites/topdown_shooter/other/cannonball.png')
+
+  game.load.tilemap('level_base', 'tilemaps/level_base.json', null, Phaser.Tilemap.TILED_JSON);
+  LEVEL_TILEMAP_KEYS.forEach(key => {
+    game.load.tilemap(key, `tilemaps/${key}.json`, null, Phaser.Tilemap.TILED_JSON);
+  });
+}
+
+/**
+ * 
+ * @param {Phaser.Tilemap} map 
+ */
+function addTilesetImages(map) {
+  // TODO only add the sets used in the map
+  TILESET_SHEET_KEYS.forEach(key => {
+    map.addTilesetImage(key);
+  })
+}
+
 class GameScene {
   /**
    * 
@@ -19,28 +61,24 @@ class GameScene {
 
     // Sprite arrays
     /** @type {Phaser.Group} */
-    this.environment = phaserGame.add.group();
+    this.enemies = null;
     /** @type {Phaser.Group} */
-    this.enemies = phaserGame.add.group();
+    this.bullets = null;
     /** @type {Phaser.Group} */
-    this.bullets = phaserGame.add.group();
+    this.environment = null;
 
-    // Use this group to make sure all game objects always render under the HUD (created later)
-    this.gameGroup = phaserGame.add.group();
-    this.gameGroup.add(this.environment);
-    this.gameGroup.add(this.enemies);
-    this.gameGroup.add(this.bullets);
+    // Use this group to make sure all physical sprites always render under the HUD (created later)
+    /** @type {Phaser.Group} */
+    this.physicalGroup = this.phaserGame.add.group(undefined, "pieces");
 
     /** @type {NinjaPlayer} */
     this.player = null;
 
-    this.spawnScene(LEVELS[this.levelIndex]);
+    /** @type {Array<Phaser.Tilemap} */
+    this.tilemaps = [];
 
-    this.map = game.add.tilemap('level_base');
-    this.map.addTilesetImage('inca_front', 'inca32');
-    this.mapLayer = this.map.createLayer('Tile Layer 1');
-    this.map.setCollisionByExclusion([], true, this.mapLayer);
-    this.mapLayer.resizeWorld();
+    /** @type {Array<Phaser.TilemapLayer} */
+    this.tilemapLayers = [];
 
     this.hudText = game.add.text(game.camera.x, game.camera.y + 15, 'dd',
       {
@@ -53,15 +91,67 @@ class GameScene {
     this.hudText.setShadow(2, 2, 'rgba(0,0,0,0.5)', 2);
     this.hudText.fixedToCamera = true;
 
-    // TEMP
-    /** @type {Phaser.Tilemap} */
-    const wave = game.add.tilemap('wave0');
-    const propMap = createPropertiesByGid(wave);
-    wave.objects['objects'].forEach(obj => {
-      console.log(propMap.get(obj.gid));
-    });
+    this.wasd = game.add.text(game.world.width / 2 - 100, game.world.height / 2 + 50,
+      'Tap WASD to fly\nDouble-tap to dash', { font: 'Courier New', fontSize: '24px', fill: '#fff' });
+    this.wasd.setShadow(2, 2, 'rgba(0,0,0,0.5)', 2);
+
+    this.spawnScene(LEVEL_TILEMAP_KEYS[this.levelIndex]);
 
     this.setupKeys();
+  }
+
+  overlapLineWithTiles(line, process) {
+    this.tilemapLayers.forEach(layer => {
+      overlapLine(line, layer, process);
+    })
+  }
+
+  spawnTilemap_(assetKey) {
+    const collidingTileTypes = new Set(['softWall', 'wall']);
+
+    const map = game.add.tilemap(assetKey);
+    this.tilemaps.push(map);
+    addTilesetImages(map);
+    addTilemapExtensions(map);
+    map.layers.forEach(layer => {
+      const layerInst = map.createLayer(layer.name);
+      this.tilemapLayers.push(layerInst);
+      // Make sure they render under HUD, etc.
+      this.environment.add(layerInst);
+
+      // Set collision for tiles that should collide.
+      const collidingTileIds = [];
+      for2d([layer.x, layer.y], [layer.width, layer.height],
+        (x, y) => {
+          const tile = map.getTile(x, y, layerInst);
+          if (tile) {
+            const type = getTilePropOr(tile, 'type', null);
+            if (collidingTileTypes.has(type)) {
+              collidingTileIds.push(tile.index);
+            }
+          }
+        });
+
+      map.setCollision(collidingTileIds, true, layerInst);
+    });
+
+    // Objects
+    for (var layerName in map.objects) {
+      map.objects[layerName].forEach(obj => {
+        const type = getObjectPropOr(map, obj.gid, 'type', undefined);
+
+        switch (type) {
+          case 'playerStart':
+            console.log(obj);
+            new NinjaPlayer(this, obj.x + 16, obj.y - 16);
+            break;
+          case 'turret':
+            new Turret(this, obj.x + 16, obj.y - 16);
+            console.log(obj);
+            break;
+        }
+      });
+    }
   }
 
   setupKeys() {
@@ -97,70 +187,64 @@ class GameScene {
 
   /**
    * 
-   * @param {string} levelString 
+   * @param {string} tilemapKey 
    */
-  spawnScene(levelString) {
-    // Create walls
-    const sideLen = Math.floor(Math.sqrt(levelString.length));
-    if (sideLen * sideLen != levelString.length) {
-      throw new Error("level string length must be a perfect square.")
-    }
-    const PPT = 32;
-    const left = snap(game.world.width / 2 - sideLen / 2 * PPT, 32);
-    const top = snap(game.world.height / 2 - sideLen / 2 * PPT, 32);
+  spawnScene(tilemapKey) {
+    // Recreate children, but don't recreate the physical group itself - to
+    // preserve order under HUD.
 
-    for (let i = 0; i < levelString.length; i++) {
-      const c = levelString.charAt(i);
-      const row = Math.floor(i / sideLen);
-      const col = i - row * sideLen;
-      const x = col * PPT + left;
-      const y = row * PPT + top;
-      if (c == 'P') {
-        new NinjaPlayer(this, x, y);
-      }
-      else if (c == 'T') {
-        new Turret(this, x, y);
-      }
-      else if (c == 'O') {
-        new BreakableWall(this, x, y);
-      }
-      else if (c == 'X') {
-        new StaticEnv(this, x, y);
-      }
-    }
+    this.tilemapLayers.forEach(l => l.destroy());
+    this.tilemapLayers = [];
+
+    safeDestroy(this.environment);
+    this.environment = this.phaserGame.add.group(this.physicalGroup, "environment");
+
+    safeDestroy(this.enemies);
+    this.enemies = this.phaserGame.add.group(this.physicalGroup, "enemies");
+
+    safeDestroy(this.bullets);
+    this.bullets = this.phaserGame.add.group(this.physicalGroup, "bullets");
+
+    this.tilemaps.forEach(m => m.destroy());
+    this.tilemaps = [];
+
+    if (this.player) this.player.destroy();
+    this.player = null;
+
+    this.spawnTilemap_('level_base');
+    this.spawnTilemap_(tilemapKey);
 
     if (this.player == null) {
       throw new Error("No player in level!");
     }
+
     if (this.enemies.countLiving() == 0) {
       throw new Error("No enemies in level!");
     }
+
+    const count = this.logSprites_();
+    console.log(`${count} objects`);
   }
 
-  clear() {
-    this.player.destroy();
-    this.environment.destroy();
-    this.enemies.destroy();
-    this.bullets.destroy();
-
-    this.environment = this.phaserGame.add.group();
-    this.enemies = this.phaserGame.add.group();
-    this.bullets = this.phaserGame.add.group();
-
-    this.gameGroup.add(this.environment);
-    this.gameGroup.add(this.enemies);
-    this.gameGroup.add(this.bullets);
-
-    this.player = null;
-
+  logSprites_(obj, prefix = '| ') {
+    if (obj === undefined) {
+      obj = this.phaserGame.world;
+    }
+    let count = 1;
+    console.log(`${prefix}${obj.constructor.name || obj.name || obj.key}`);
+    if (obj instanceof Phaser.Group) {
+      obj.forEach(c => {
+        count += this.logSprites_(c, prefix + '| ');
+      });
+    }
+    return count;
   }
 
   countdownToLevel(ms) {
-    wasd.visible = this.levelIndex == 0;
+    this.wasd.visible = this.levelIndex == 0;
     this.state = 'countdown';
-    this.phaserGame.stage.backgroundColor = '#1e0020';
-    this.clear();
-    this.spawnScene(LEVELS[this.levelIndex]);
+    this.phaserGame.stage.backgroundColor = waitBgColor;
+    this.spawnScene(LEVEL_TILEMAP_KEYS[this.levelIndex]);
     this.hudText.text = 'Get ready..'
     triggerSlowMo(100, ms);
     this.phaserGame.time.events.add(ms, () => {
@@ -174,20 +258,32 @@ class GameScene {
       () => {
         this.hudText.tint = Math.floor(this.phaserGame.time.time / 60) % 2 == 0 ? 0x88ff00 : 0xffffff;
       },
-      () => { this.hudText.tint = 0xffffff });
+      () => this.hudText.tint = 0xffffff);
+  }
+
+  isPlaying() {
+    return this.state == 'playing';
   }
 
   update() {
+
+    //TEMP
+    // this.debugTiles = [];
+    // this.overlapLineWithTiles(
+    // new Phaser.Line(1000, 1000, this.player.x, this.player.y),
+    // tile => {
+    // this.debugTiles.push(tile);
+    // });
+
     this.adHocUpdaters.update();
     this.updateHud();
 
-    this.myCollide(this.player, this.environment);
     this.myCollide(this.player, this.enemies);
     this.myCollide(this.player, this.bullets);
-    this.myCollide(this.enemies, this.environment);
-    this.myCollide(this.bullets, this.environment);
 
-    this.myCollide(this.player, this.mapLayer);
+    [this.player, this.enemies, this.bullets].forEach(group => {
+      this.tilemapLayers.forEach(layer => this.myCollide(group, layer));
+    });
 
     if (this.state == 'playing') {
       if (this.enemies.countLiving() == 0) {
@@ -195,21 +291,23 @@ class GameScene {
         this.hudText.text = '!! LEVEL CLEAR !!';
         this.phaserGame.stage.backgroundColor = '#1e4e54';
         addShake(50, 50);
-        triggerSlowMo(5, 1500);
+        const ms = 1500;
+        triggerSlowMo(5, ms);
         this.levelIndex++;
-        this.phaserGame.time.events.add(1500, () => {
+        this.phaserGame.time.events.add(ms, () => {
           this.countdownToLevel(1500);
         });
       }
       else if (this.player.getHealth() <= 0) {
         this.state = 'gameover';
         this.hudText.text = '!! GAME OVER !!';
-        this.phaserGame.stage.backgroundColor = '#1e0020';
+        this.phaserGame.stage.backgroundColor = waitBgColor;
 
+        const ms = 1000;
         addShake(10, 10);
-        triggerSlowMo(5, 1500);
-        this.phaserGame.time.events.add(1500, () => {
-          this.countdownToLevel(500);
+        triggerSlowMo(5, ms);
+        this.phaserGame.time.events.add(ms, () => {
+          this.countdownToLevel(0);
         })
       }
     }
@@ -247,39 +345,15 @@ var scoreFx;
 var shakeX = 0;
 var shakeY = 0;
 
-let wasd;
-
-function preload() {
-  PRELOAD_CREATE_LIST.forEach(asset => asset.preload());
-  // TODO have these preloads be declared in the Object files, like audio.
-  game.load.image('ground', 'phaser_tutorial_02/assets/platform.png');
-  game.load.image('star', 'phaser_tutorial_02/assets/star.png');
-  game.load.image('baddie', 'phaser_tutorial_02/assets/baddie.png');
-  game.load.spritesheet('dude', 'phaser_tutorial_02/assets/dude.png', 32, 48);
-  game.load.spritesheet('ninja', 'sprites/ninja-sheet.png', 32, 64);
-  game.load.spritesheet('inca32', 'sprites/inca_front.png', 32, 32);
-  game.load.spritesheet('powerup', 'sprites/Spaceship-shooter-environment/spritesheets/power-up.png', 32, 32);
-  game.load.spritesheet('shots', 'sprites/Spaceship-shooter-environment/spritesheets/laser-bolts.png', 16, 16);
-  game.load.image('turret', 'sprites/topdown_shooter/guns/cannon/cannon_down.png');
-  game.load.image('cannonball', 'sprites/topdown_shooter/other/cannonball.png')
-
-  game.load.tilemap('level_base', 'tilemaps/level_base.json', null, Phaser.Tilemap.TILED_JSON);
-  game.load.tilemap('wave0', 'tilemaps/wave0.json', null, Phaser.Tilemap.TILED_JSON);
-}
-
 function create() {
   game.stage.backgroundColor = '#2e0e39';
   game.world.setBounds(0, 0, 2000, 2000);
   PRELOAD_CREATE_LIST.forEach(asset => asset.create());
   game.physics.startSystem(Phaser.Physics.ARCADE);
 
-  wasd = game.add.text(game.world.width / 2 - 100, game.world.height / 2 + 50,
-    'Tap WASD to fly\nDouble-tap to dash', { font: 'Courier New', fontSize: '24px', fill: '#fff' });
-  wasd.setShadow(3, 3, '#000', 2);
-
-  scoreFx = game.add.emitter(0, 0, 100);
-  scoreFx.makeParticles('star');
-  scoreFx.gravity = 200;
+  // scoreFx = game.add.emitter(0, 0, 100);
+  // scoreFx.makeParticles('star');
+  // scoreFx.gravity = 200;
 
   scene = new GameScene(game);
 
@@ -338,6 +412,16 @@ function updateCamera() {
 }
 
 function render() {
+  if (scene.debugTiles) {
+    scene.debugTiles.forEach(t => {
+      const r = new Phaser.Rectangle(t.worldX, t.worldY, t.width, t.height);
+      game.debug.rectangle(r, '#ffffff', true);
+      game.debug.rectangle(r, '#00ff00', true);
+    });
+
+    game.debug.geom(new Phaser.Line(1000, 1000, scene.player.x, scene.player.y), '#ff0000', true);
+    game.debug.text(`${scene.debugTiles.length}`, 100, 100, '#ffffff');
+  }
   // game.debug.rectangle(player.getBounds(), '#ff0000', false);
   // game.debug.body(scene.player);
   // const t = player.body.touching;

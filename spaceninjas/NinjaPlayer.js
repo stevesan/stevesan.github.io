@@ -21,6 +21,7 @@ class NinjaPlayer extends GameObject {
     this.animations.add('idle', [2, 10], 4, true);
     this.animations.add('dashing', [0, 8], 16, true);
     this.animations.add('flying', [1, 9], 12, true);
+    this.frame = 10;
 
     game.physics.arcade.enable(this);
     this.body.bounce.y = 0;
@@ -29,10 +30,11 @@ class NinjaPlayer extends GameObject {
     // Position sprite and collider so they're offset and rotate correctly.
     const spriteBounds = this.getBounds();
     const L = Math.min(spriteBounds.width, spriteBounds.height);
+    // Better to set anchor instead of pivot, to keep collider in sync.
     this.anchor.set(0.5, 0.25);
     this.body.setSize(L, L, 0, 0);
 
-    this.health = 1;
+    this.health = 999;
     this.state = 'idle';
     this.currentDir = 0;
     this.lastDirPressTime = 0;
@@ -42,11 +44,32 @@ class NinjaPlayer extends GameObject {
     this.wasBlocked = new WasBlockedTracker(this.body);
   }
 
+  isDashableWallTile_(sprite) {
+    if (!(sprite instanceof Phaser.Tile)) {
+      return false;
+    }
+
+    const props = getTileProps(sprite);
+    if (!props) {
+      return false;
+    }
+
+    return props.type == 'softWall';
+  }
+
   /**
   * @param {GameObject} other 
   * @return {boolean}
   */
   onOverlap(other) {
+    if (this.isDashableWallTile_(other) && this.isDashing()) {
+      // Dash through and break tile.
+      removeTileFromMap(other);
+      WALL_BREAK_AUDIO.get().play();
+      hitPause(200);
+      addShake(8, 8);
+      return false;
+    }
     if (this.isDead()) {
       return true;
     }
@@ -59,14 +82,28 @@ class NinjaPlayer extends GameObject {
     return true;
   }
 
+  onHitWall_(dir) {
+    if (this.isDead()) {
+      return;
+    }
+    this.state = 'idle';
+    this.body.velocity.set(0, 0);
+    this.setDirection_(opposite(dir));
+    PLAYER_LAND_AUDIO.get().play();
+  }
+
   /**
    * @param {GameObject} other 
    */
   onCollide(other) {
-    // NOTE: this clause doesn't pass for tilemap walls...
-    if (startedTouchingInAnyDir(this.body) || this.wasBlocked.wasJustBlockedInAnyDir()) {
-      // TODO actually just create another clause for blocked..
-      this.onHitWall(getTouchingDir(this.body));
+    if (startedTouchingInAnyDir(this.body)) {
+      const dir = getTouchingDir(this.body);
+      this.onHitWall_(dir);
+    }
+
+    if (this.wasBlocked.wasJustBlockedInAnyDir()) {
+      const dir = getBlockedDir(this.body);
+      this.onHitWall_(dir);
     }
   }
 
@@ -99,15 +136,16 @@ class NinjaPlayer extends GameObject {
   }
 
   update() {
-    if (this.isDead()) {
-      this.tint = 0xaaaaaa;
+    if (this.isDead() || this.scene.state == 'countdown') {
+      this.tint = 0x888888;
       this.animations.stop(this.getState());
     }
     else {
+      this.tint = 0xffffff;
       this.animations.play(this.getState());
     }
 
-    this.wasBlocked.updateWas();
+    this.wasBlocked.update();
   }
 
   getState() {
@@ -157,27 +195,18 @@ class NinjaPlayer extends GameObject {
     this.lastPressedDir = dir;
     this.lastDirPressTime = Date.now()
 
-    // TODO somehow check if we can even move in this dir!
-
     this.state = isDash ? "dashing" : "flying";
 
     this.setVelocity_(dir, isDash ? DASHING_SPEED : NORMAL_SPEED);
     if (isDash) {
       DASH_AUDIO.get().play();
+      addShake(2, 2);
     }
     else {
       CHANGE_DIR_AUDIO.get().play();
     }
+
   }
 
-  onHitWall(dir) {
-    if (this.isDead()) {
-      return;
-    }
-    this.state = 'idle';
-    this.body.velocity.set(0, 0);
-    this.setDirection_(opposite(dir));
-    PLAYER_LAND_AUDIO.get().play();
-  }
 }
 

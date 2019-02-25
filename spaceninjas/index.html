@@ -7,14 +7,16 @@
   <script src="phaser.js"></script>
 
   <script src="MathUtil.js"></script>
+  <script src="PhaserUtil.js"></script>
   <script src="AssetUtil.js"></script>
   <script src="PhysicsUtil.js"></script>
+  <script src="TileUtil.js"></script>
   <script src="AdHocUpdaters.js"></script>
 
-  <script src="Levels.js"></script>
   <script src="GameObject.js"></script>
   <script src="EnvObjects.js"></script>
   <script src="NinjaPlayer.js"></script>
+  <script src="Bullet.js"></script>
   <script src="Turret.js"></script>
 
   <script src="main.js"></script>
@@ -26,8 +28,9 @@
   <p>
     Bugs/TODO:
     <ol>
-      <li>Level flow with Tiled maps</li>
       <li>Bull enemy (raycast for clearance)</li>
+      <li>implement some "soft corners" ie. if moving a few pixels to the left would keep us going rather than
+        colliding, just do it for the player</li>
       <li>Smart-bomb enemy</li>
       <li>Do this: https://www.belenalbeza.com/articles/retro-crisp-pixel-art-in-phaser/</li>
       <li>Put in better font</li>
