@@ -27,6 +27,9 @@ function preload() {
   game.load.spritesheet('ninja', 'sprites/ninja-sheet.png', 32, 64);
   game.load.spritesheet('powerup', 'sprites/Spaceship-shooter-environment/spritesheets/power-up.png', 32, 32);
   game.load.spritesheet('shots', 'sprites/Spaceship-shooter-environment/spritesheets/laser-bolts.png', 16, 16);
+  game.load.spritesheet('enemy-medium', 'sprites/Spaceship-shooter-environment/spritesheets/enemy-medium.png', 64, 32);
+  game.load.spritesheet('robot-parts', 'sprites/sci fi robot parts.png', 32, 32);
+  game.load.image('laser-side', 'sprites/topdown_shooter/guns/laser/laser_side.png');
   game.load.image('turret', 'sprites/topdown_shooter/guns/cannon/cannon_down.png');
   game.load.image('cannonball', 'sprites/topdown_shooter/other/cannonball.png')
 
@@ -100,6 +103,54 @@ class GameScene {
     this.setupKeys();
   }
 
+  /**
+   * @returns {number} In seconds
+   */
+  getDeltaTime() {
+    return this.phaserGame.time.physicsElapsed;
+  }
+
+  /**
+   * @returns {number} Absolute game time in seconds;
+   */
+  getTime() {
+    return this.phaserGame.time.time / 1e3;
+  }
+
+  squareWave(freqHz, offsetSecs = 0) {
+    return Math.floor((offsetSecs + this.getTime()) * 2 * freqHz) % 2 == 0;
+  }
+
+  hasClearLineOfSight(a, b) {
+    let hitAny = false;
+    this.overlapLineWithTiles(new Phaser.Line(a.x, a.y, b.x, b.y), tile => {
+      hitAny = true;
+    });
+    return !hitAny;
+  }
+
+  /**
+   * Returns the closest intersecting tile and point of intersection
+   * @param {Phaser.Line} line 
+   */
+  raycastTiles(line) {
+    let bestTile = null;
+    let bestIntx = new Phaser.Point();
+    let bestDist = 0;
+    this.tilemapLayers.forEach(layer => {
+      overlapLine(line, layer, (tile, intx) => {
+        const dist = Phaser.Point.distance(line.start, intx);
+        if (bestTile == null || dist < bestDist) {
+          bestTile = tile;
+          bestIntx.copyFrom(intx);
+          bestDist = dist;
+        }
+      });
+    });
+
+    return { tile: bestTile, intx: bestIntx };
+  }
+
   overlapLineWithTiles(line, process) {
     this.tilemapLayers.forEach(layer => {
       overlapLine(line, layer, process);
@@ -147,7 +198,15 @@ class GameScene {
             break;
           case 'turret':
             new Turret(this, obj.x + 16, obj.y - 16);
-            console.log(obj);
+            break;
+          case 'chaser':
+            new Chaser(this, obj.x + 16, obj.y - 16);
+            break;
+          case 'bull':
+            new Bull(this, obj.x + 16, obj.y - 16);
+            break;
+          case 'laser':
+            new SpinLaser(this, obj.x + 16, obj.y - 16);
             break;
         }
       });
@@ -421,11 +480,26 @@ function render() {
 
     game.debug.geom(new Phaser.Line(1000, 1000, scene.player.x, scene.player.y), '#ff0000', true);
     game.debug.text(`${scene.debugTiles.length}`, 100, 100, '#ffffff');
+
   }
   // game.debug.rectangle(player.getBounds(), '#ff0000', false);
   // game.debug.body(scene.player);
   // const t = player.body.touching;
   // game.debug.text(`body touch: ${t['up'] ? 'u' : ' '}${t['left'] ? 'l' : ' '}${t['down'] ? 'd' : ' '}${t['right'] ? 'r' : ' '}`, 0, 50);
+
+
+  if (false) {
+    // debug raycast
+    const line = new Phaser.Line(scene.player.x, scene.player.y, 1000, 1000);
+    game.debug.geom(line, '#ff0000', true);
+    const cast = scene.raycastTiles(line);
+    if (cast.tile != null) {
+      const t = cast.tile;
+      const r = new Phaser.Rectangle(t.worldX, t.worldY, t.width, t.height);
+      game.debug.rectangle(r, '#00ff00', true);
+      game.debug.geom(cast.intx, '#ff0000', true);
+    }
+  }
 }
 
 window.onload = function () {

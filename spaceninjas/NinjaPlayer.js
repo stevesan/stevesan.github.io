@@ -1,5 +1,5 @@
-const NORMAL_SPEED = 200;
-const DASHING_SPEED = 500;
+const PLAYER_NORMAL_SPEED = 200;
+const PLAYER_DASHING_SPEED = 500;
 const DOUBLE_TAP_MS = 300;
 
 const PLAYER_LAND_AUDIO = new PreloadedAudio("wavs/landscratch.wav");
@@ -34,7 +34,7 @@ class NinjaPlayer extends GameObject {
     this.anchor.set(0.5, 0.25);
     this.body.setSize(L, L, 0, 0);
 
-    this.health = 999;
+    this.health = 1;
     this.state = 'idle';
     this.currentDir = 0;
     this.lastDirPressTime = 0;
@@ -128,7 +128,7 @@ class NinjaPlayer extends GameObject {
   }
 
   continueDashing() {
-    this.setVelocity_(this.currentDir, DASHING_SPEED);
+    this.setVelocity_(this.currentDir, PLAYER_DASHING_SPEED);
   }
 
   isDead() {
@@ -197,7 +197,7 @@ class NinjaPlayer extends GameObject {
 
     this.state = isDash ? "dashing" : "flying";
 
-    this.setVelocity_(dir, isDash ? DASHING_SPEED : NORMAL_SPEED);
+    this.setVelocity_(dir, isDash ? PLAYER_DASHING_SPEED : PLAYER_NORMAL_SPEED);
     if (isDash) {
       DASH_AUDIO.get().play();
       addShake(2, 2);

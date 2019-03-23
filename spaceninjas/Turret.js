@@ -44,5 +44,13 @@ class Turret extends GameObject {
       }
       this.cooldown = COOLDOWN_S;
     }
+    else {
+      if (this.cooldown < 0.5) {
+        this.tint = this.scene.squareWave(10) ? 0xff0000 : 0xffffff;
+      }
+      else {
+        this.tint = 0xffffff;
+      }
+    }
   }
 }
