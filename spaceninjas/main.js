@@ -5,6 +5,12 @@ const S = 1;
 const CANVAS_PIXELS_PER_SPRITE_PIXEL = 2;
 const CPPSP = CANVAS_PIXELS_PER_SPRITE_PIXEL;
 
+// Used for run-time mod of debug flags. For example, if you want to debug-draw
+// the player and coins, open the Chrome console and run "DEBUG.draws = ['player', 'coins']"
+const DEBUG = {
+  draws: []
+};
+
 const waitBgColor = '#0e0020';
 
 const LEVEL_TILEMAP_KEYS = ['wave0', 'wave1', 'wave2'];
@@ -52,7 +58,6 @@ function addTilesetImages(map) {
 
 class GameScene {
   /**
-   * 
    * @param {Phaser.Game} phaserGame 
    */
   constructor(phaserGame) {
@@ -121,16 +126,22 @@ class GameScene {
     return Math.floor((offsetSecs + this.getTime()) * 2 * freqHz) % 2 == 0;
   }
 
+  /**
+   * Only considers tiles to be vis-blocking, not entities.
+   * @param {Phaser.Point} a 
+   * @param {Phaser.Point} b 
+   */
   hasClearLineOfSight(a, b) {
     let hitAny = false;
-    this.overlapLineWithTiles(new Phaser.Line(a.x, a.y, b.x, b.y), tile => {
+    this.overlapLineWithTileLayers(new Phaser.Line(a.x, a.y, b.x, b.y), tile => {
       hitAny = true;
     });
     return !hitAny;
   }
 
   /**
-   * Returns the closest intersecting tile and point of intersection
+   * Returns the closest intersecting tile and point of intersection. Not very
+   * efficient right now.
    * @param {Phaser.Line} line 
    */
   raycastTiles(line) {
@@ -138,7 +149,7 @@ class GameScene {
     let bestIntx = new Phaser.Point();
     let bestDist = 0;
     this.tilemapLayers.forEach(layer => {
-      overlapLine(line, layer, (tile, intx) => {
+      overlapLineWithLayer(line, layer, (tile, intx) => {
         const dist = Phaser.Point.distance(line.start, intx);
         if (bestTile == null || dist < bestDist) {
           bestTile = tile;
@@ -151,9 +162,9 @@ class GameScene {
     return { tile: bestTile, intx: bestIntx };
   }
 
-  overlapLineWithTiles(line, process) {
+  overlapLineWithTileLayers(line, process) {
     this.tilemapLayers.forEach(layer => {
-      overlapLine(line, layer, process);
+      overlapLineWithLayer(line, layer, process);
     })
   }
 
@@ -313,6 +324,8 @@ class GameScene {
   }
 
   onEnemyDeath(enemy) {
+    hitPause(180);
+    addShake(8, 8);
     this.adHocUpdaters.add(1000,
       () => {
         this.hudText.tint = Math.floor(this.phaserGame.time.time / 60) % 2 == 0 ? 0x88ff00 : 0xffffff;
@@ -326,13 +339,14 @@ class GameScene {
 
   update() {
 
-    //TEMP
-    // this.debugTiles = [];
-    // this.overlapLineWithTiles(
-    // new Phaser.Line(1000, 1000, this.player.x, this.player.y),
-    // tile => {
-    // this.debugTiles.push(tile);
-    // });
+    if (DEBUG.draws.includes('overlaptest')) {
+      this.debugTiles = [];
+      this.overlapLineWithTileLayers(
+        new Phaser.Line(1000, 1000, this.player.x, this.player.y),
+        tile => {
+          this.debugTiles.push(tile);
+        });
+    }
 
     this.adHocUpdaters.update();
     this.updateHud();
@@ -470,6 +484,14 @@ function updateCamera() {
   }
 }
 
+function debugDrawPlayer() {
+  const player = scene.player;
+  game.debug.rectangle(player.getBounds(), '#ff0000', false);
+  game.debug.body(player);
+  const t = player.body.touching;
+  game.debug.text(`body touch: ${t['up'] ? 'u' : ' '}${t['left'] ? 'l' : ' '}${t['down'] ? 'd' : ' '}${t['right'] ? 'r' : ' '}`, 0, 50);
+}
+
 function render() {
   if (scene.debugTiles) {
     scene.debugTiles.forEach(t => {
@@ -480,15 +502,13 @@ function render() {
 
     game.debug.geom(new Phaser.Line(1000, 1000, scene.player.x, scene.player.y), '#ff0000', true);
     game.debug.text(`${scene.debugTiles.length}`, 100, 100, '#ffffff');
-
   }
-  // game.debug.rectangle(player.getBounds(), '#ff0000', false);
-  // game.debug.body(scene.player);
-  // const t = player.body.touching;
-  // game.debug.text(`body touch: ${t['up'] ? 'u' : ' '}${t['left'] ? 'l' : ' '}${t['down'] ? 'd' : ' '}${t['right'] ? 'r' : ' '}`, 0, 50);
 
+  if (DEBUG.draws.includes('player')) {
+    debugDrawPlayer();
+  }
 
-  if (false) {
+  if (DEBUG.draws.includes('tilecast')) {
     // debug raycast
     const line = new Phaser.Line(scene.player.x, scene.player.y, 1000, 1000);
     game.debug.geom(line, '#ff0000', true);
