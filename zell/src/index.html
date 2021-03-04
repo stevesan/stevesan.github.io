@@ -174,43 +174,119 @@
       }
     }
 
+    class ActionMenu {
+      constructor(scene) {
+        this.scene = scene;
+        this.destroyables = [];
+      }
+
+      create(x, y) {
+        x -= 40;
+        y -= 10;
+        const scale = 0.05;
+
+        const textStyle = {
+          font: "32px Arial Black", fill: "#000",
+          stroke: "#fff", strokeThickness: 5
+        };
+
+        const scene = this.scene;
+        this.header = scene.add.text(x, y,
+          'Nucleus',
+          textStyle);
+        this.header.setScale(scale);
+        this.destroyables.push(this.header);
+
+        y += 5;
+
+        this.erButton = scene.add.text(x, y,
+          'Endoplasmic Reticulum (ER)   [+]',
+          textStyle);
+        this.erButton.setScale(scale);
+        this.destroyables.push(this.erButton);
+      }
+
+      destroy() {
+        for (let obj of this.destroyables) {
+          obj.destroy();
+        }
+        this.destroyables = [];
+      }
+    }
+
     class CellMode {
       constructor(scene, cellEnt) {
         this.scene = scene;
         this.cellEntity = cellEnt;
 
-        this.ents = [];
+        this.destroyables = new Set();
 
         let globalScale = 1.0;
+
+        let throb = (image) => {
+          scene.tweens.add({
+            targets: image,
+            scaleX: 0.11,
+            scaleY: 0.11,
+            _ease: 'Sine.easeInOut',
+            ease: 'Power2',
+            duration: 50,
+            delay: 0,
+            repeat: 0,
+            yoyo: true,
+            hold: 0,
+            repeatDelay: 0
+          });
+        };
 
         let cx = cellEnt.gameObject.x;
         let cy = cellEnt.gameObject.y;
         {
           let mito = scene.add.image(cx - 10, cy + 10, 'mito').setInteractive();
           mito.setScale(0.1 * globalScale);
-          this.ents.push(mito);
+          mito.on('pointerdown', () => {
+            throb(mito);
+            console.log('mito....');
+          });
+          this.destroyables.add(mito);
         }
         {
           let mito = scene.add.image(cx + 10, cy + 12, 'mito').setInteractive();
           mito.setScale(0.1 * globalScale);
           mito.setAngle(-30);
-          this.ents.push(mito);
+          mito.on('pointerdown', () => {
+            console.log('mito....');
+            throb(mito);
+          });
+          this.destroyables.add(mito);
         }
         {
           let nuc = scene.add.image(cx + 0, cy - 5, 'nuc').setInteractive();
           nuc.on('pointerdown', () => {
-            console.log('nuclers....');
+            console.log('nucleus....');
+            throb(nuc);
+
+            if (this.actionMenu) {
+              this.actionMenu.destroy();
+              this.destroyables.delete(this.actionMenu);
+              this.actionMenu = null;
+            }
+            else {
+              this.actionMenu = new ActionMenu(scene);
+              this.actionMenu.create(nuc.x, nuc.y);
+              this.destroyables.add(this.actionMenu);
+            }
           });
           nuc.setScale(0.1 * globalScale);
-          this.ents.push(nuc);
+          this.destroyables.add(nuc);
         }
       }
 
-      dispose() {
-        for (let ent of this.ents) {
-          ent.destroy();
+      destroy() {
+        for (let obj of this.destroyables) {
+          obj.destroy();
         }
-        this.ents = [];
+        this.destroyables.clear();
       }
     }
 
@@ -243,7 +319,7 @@
       this.physics.world.setBounds(0, 0, worldWidth, worldHeight);
       this.sound.add('bgmusic', { loop: true, volume: 0.2 }).play();
 
-      this.clickAudio = this.sound.add('click', { volume: 0.1 });
+      this.clickAudio = this.sound.add('click', { volume: 0.3 });
       this.powerupAudio = this.sound.add('powerup', { volume: 0.1 });
 
       createFuzz(this);
@@ -334,7 +410,9 @@
         let x = pointer.worldX;
         let y = pointer.worldY;
         console.log(`clicked @ ${x}, ${y}`);
-        clickEmitter.explode(30, x, y);
+        if (!this.isCellMode()) {
+          clickEmitter.explode(30, x, y);
+        }
         this.clickAudio.play();
 
         let clickedAny = false;
@@ -369,7 +447,7 @@
         this.cameras.main.setBackgroundColor("#221111")
         this.cameras.main.zoomTo(1, 1000, Phaser.Math.Easing.Quartic.Out, true);
         if (this.cellMode) {
-          this.cellMode.dispose();
+          this.cellMode.destroy();
           this.cellMode = null;
         }
       };
