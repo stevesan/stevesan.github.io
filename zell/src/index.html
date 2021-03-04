@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.52.0/dist/phaser-arcade-physics.min.js"></script>
+</head>
+
+<body>
+
+  <script>
+    var config = {
+      type: Phaser.AUTO,
+      width: 1280,
+      height: 720,
+      physics: {
+        default: 'arcade',
+        arcade: {
+          gravity: { x: 0, y: 0 },
+          debug: false,
+        }
+      },
+      scene: {
+        preload: preload,
+        create: create,
+        update: update
+      }
+    };
+
+    var game = new Phaser.Game(config);
+
+    function preload() {
+      this.load.setBaseURL('../assets');
+      this.load.image('cell', 'cell.png');
+      this.load.image('mito', 'mito.png');
+      this.load.image('nuc', 'nuc.png');
+      this.load.image('fuzz', 'fuzz.png');
+      this.load.image('sugar', 'molecule.png');
+      this.load.image('arrow', 'arrow.png');
+      this.load.image('particles/blue', 'particles/blue.png');
+
+      this.load.audio('click', 'sounds/click.wav');
+      this.load.audio('powerup', 'sounds/powerup.wav');
+      this.load.audio('bgmusic', 'music/ftl-title-theme.mp3');
+    }
+
+    class Entity {
+      constructor(scene, gameObject) {
+        this.scene = scene;
+        this.gameObject = gameObject;
+        gameObject.entity = this;
+      }
+
+      onClick(scene) {
+      }
+
+      onPointerIn() {
+        if (!this.gameObject) return;
+        this.gameObject.setTint(0x88ff88);
+      }
+
+      onPointerOut() {
+        if (!this.gameObject) return;
+        this.gameObject.clearTint();
+      }
+    }
+
+    class SugarEntity extends Entity {
+      constructor(scene, go) {
+        super(scene, go);
+      }
+
+      update(dt) {
+        if (!this.gameObject) return;
+      }
+
+      destroy() {
+        this.gameObject.destroy();
+        this.gameObject = null;
+      }
+
+      onClick(scene) {
+        if (selectedCellEntity) {
+          selectedCellEntity.targetMode = 'ent';
+          selectedCellEntity.targetEnt = this;
+        }
+      }
+
+    }
+
+    const MAX_CELL_SPEED = 300;
+
+    // Gross
+    let imageWasJustClicked = false;
+
+    let explosionEmitter = null;
+    let clickEmitter = null;
+
+    let pointerObject = null;
+    let selectedCellEntity = null;
+
+    class CellEntity extends Entity {
+      constructor(scene, go) {
+        super(scene, go);
+        this.targetMode = 'none';
+
+        this.prevVelX = 0;
+        this.prevVelY = 0;
+        this.spinDir = 1;
+      }
+
+      commandToWorldPos(x, y) {
+        this.targetMode = 'pos';
+        this.targetX = x;
+        this.targetY = y;
+        this.spinDir *= -1;
+      }
+
+      goTowards(x, y, dt) {
+        let dx = x - this.gameObject.x;
+        let dy = y - this.gameObject.y;
+        let dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist <= 0) return;
+
+        let easiness = 20;
+        let speed = MAX_CELL_SPEED * (1 - 1 / (dist / easiness + 1));
+        this.prevVelX = dx / dist * speed;
+        this.prevVelY = dy / dist * speed;
+        this.gameObject.setVelocity(this.prevVelX, this.prevVelY);
+      }
+
+      onClick(scene) {
+        if (!this.scene.isCellMode()) {
+          scene.enterCellMode(this);
+        }
+      }
+
+      onPointerIn() {
+        if (!this.gameObject) return;
+        if (!this.scene.isCellMode()) {
+          this.gameObject.setTint(0x88ff88);
+        }
+      }
+
+      update(dtMs) {
+        if (!this.gameObject) return;
+
+        if (this.scene.isCellMode()) {
+          this.gameObject.clearTint();
+          this.gameObject.setVelocity(0, 0);
+          this.gameObject.setAngularVelocity(0);
+          this.gameObject.setImmovable(true);
+          this.gameObject.angle += dtMs / 1000 * 5 * this.spinDir;
+          this.targetMode = 'none';
+        }
+        else {
+          this.gameObject.setImmovable(false);
+          if (this.targetMode == 'pos') {
+            this.goTowards(this.targetX, this.targetY, dtMs);
+          }
+          else if (this.targetMode == 'ent') {
+            if (this.targetEnt == null || this.targetEnt.gameObject == null) {
+              // It's gone - just go a bit past it
+              this.targetMode = 'pos';
+              let pastTime = 0.1;
+              this.targetX = this.gameObject.x + this.prevVelX * pastTime;
+              this.targetY = this.gameObject.y + this.prevVelY * pastTime;
+            } else {
+              this.goTowards(this.targetEnt.gameObject.x, this.targetEnt.gameObject.y, dtMs);
+            }
+          }
+
+          this.gameObject.angle += dtMs / 1000 * 60 * this.spinDir;
+        }
+      }
+    }
+
+    class CellMode {
+      constructor(scene, cellEnt) {
+        this.scene = scene;
+        this.cellEntity = cellEnt;
+
+        this.ents = [];
+
+        let globalScale = 1.0;
+
+        let cx = cellEnt.gameObject.x;
+        let cy = cellEnt.gameObject.y;
+        {
+          let mito = scene.add.image(cx - 10, cy + 10, 'mito').setInteractive();
+          mito.setScale(0.1 * globalScale);
+          this.ents.push(mito);
+        }
+        {
+          let mito = scene.add.image(cx + 10, cy + 12, 'mito').setInteractive();
+          mito.setScale(0.1 * globalScale);
+          mito.setAngle(-30);
+          this.ents.push(mito);
+        }
+        {
+          let nuc = scene.add.image(cx + 0, cy - 5, 'nuc').setInteractive();
+          nuc.on('pointerdown', () => {
+            console.log('nuclers....');
+          });
+          nuc.setScale(0.1 * globalScale);
+          this.ents.push(nuc);
+        }
+      }
+
+      dispose() {
+        for (let ent of this.ents) {
+          ent.destroy();
+        }
+        this.ents = [];
+      }
+    }
+
+    const worldWidth = 2000;
+    const worldHeight = 2000;
+
+    function createFuzz(scene) {
+      scene.fuzzes = [];
+      for (let i = 0; i < 100; i++) {
+        let x = worldWidth * Math.random();
+        let y = worldHeight * Math.random();
+        let image = scene.add.image(x, y, 'fuzz');
+        image.alpha = Math.random() * 0.8;
+        image.origX = x;
+        image.origY = y;
+        image.freq = (Math.random() * 2 - 1) * 0.3;
+        image.amp = Math.random() * 20;
+        scene.fuzzes.push(image);
+      }
+    }
+
+    function updateFuzzes(scene, time, dtMs) {
+      for (let fuzz of scene.fuzzes) {
+        fuzz.x = fuzz.origX + Math.sin(2 * Math.PI * fuzz.freq * time / 1000) * fuzz.amp;
+        fuzz.y = fuzz.origY + Math.cos(2 * Math.PI * fuzz.freq * time / 1000) * fuzz.amp;
+      }
+    }
+
+    function create() {
+      this.physics.world.setBounds(0, 0, worldWidth, worldHeight);
+      this.sound.add('bgmusic', { loop: true, volume: 0.2 }).play();
+
+      this.clickAudio = this.sound.add('click', { volume: 0.1 });
+      this.powerupAudio = this.sound.add('powerup', { volume: 0.1 });
+
+      createFuzz(this);
+
+      this.entities = [];
+
+      var cellImage = this.physics.add.image(config.width / 2, config.height / 2, 'cell');
+      cellImage.setCircle(32);
+      cellImage.setVelocity(1, 1);
+      cellImage.setBounce(1, 1);
+      cellImage.setCollideWorldBounds(true);
+
+      let cell = new CellEntity(this, cellImage);
+      selectedCellEntity = cell;
+      this.cameras.main.startFollow(cellImage);
+      this.cameras.main.setLerp(0.1);
+      this.entities.push(cell)
+
+      for (let i = 0; i < 5; i++) {
+        var sugarImage = this.physics.add.image(Math.random() * config.width, Math.random() * config.height, 'sugar');
+        sugarImage.setCircle(32);
+        sugarImage.setVelocity((Math.random() - 0.5) * 50, (Math.random() - 0.5) * 50);
+        sugarImage.setAngularVelocity((Math.random() - 0.5) * 180);
+        sugarImage.setBounce(1, 1);
+        sugarImage.setCollideWorldBounds(true);
+        let sugar = new SugarEntity(this, sugarImage);
+        this.entities.push(sugar);
+
+        this.physics.add.overlap(sugarImage, cellImage, (sugarImage, cellImage) => {
+          explosionEmitter.explode(100, sugarImage.x, sugarImage.y);
+          sugar.destroy();
+          this.powerupAudio.play();
+          this.cameras.main.shake(400, 0.005);
+        });
+      }
+
+      var particles = this.add.particles('particles/blue');
+      particles.depth = 1;
+      var emitter = particles.createEmitter({
+        speed: 500,
+        lifespan: 1000,
+        scale: { start: 1, end: 0 },
+        blendMode: 'ADD'
+      });
+      emitter.stop();
+
+      explosionEmitter = emitter;
+
+      clickEmitter = particles.createEmitter({
+        speed: 200,
+        lifespan: 250,
+        scale: { start: 1, end: 0 },
+        blendMode: 'ADD'
+      });
+      clickEmitter.stop();
+
+      let getObjectsUnderPointer = (pointer) => {
+        return this.physics.overlapRect(pointer.worldX, pointer.worldY, 1, 1);
+      };
+
+      let prevHoveredEnts = new Set();
+
+      this.input.on('pointermove', (pointer) => {
+        let hoveredEnts = new Set();
+        for (let body of getObjectsUnderPointer(pointer)) {
+          if (body.gameObject.entity) {
+            hoveredEnts.add(body.gameObject.entity);
+          }
+        }
+
+        for (let ent of hoveredEnts) {
+          if (!prevHoveredEnts.has(ent)) {
+            ent.onPointerIn();
+          }
+        }
+
+        for (let ent of prevHoveredEnts) {
+          if (!hoveredEnts.has(ent)) {
+            ent.onPointerOut();
+          }
+        }
+
+        prevHoveredEnts = hoveredEnts;
+      });
+
+      // Scene-wide click handler
+      this.input.on('pointerdown', (pointer) => {
+        let x = pointer.worldX;
+        let y = pointer.worldY;
+        console.log(`clicked @ ${x}, ${y}`);
+        clickEmitter.explode(30, x, y);
+        this.clickAudio.play();
+
+        let clickedAny = false;
+        for (let body of getObjectsUnderPointer(pointer)) {
+          if (body.gameObject.entity) {
+            body.gameObject.entity.onClick(this);
+            clickedAny = true;
+          }
+        }
+
+        if (!clickedAny) {
+          // Clicked bg
+          if (this.isCellMode()) {
+            this.enterMoveMode();
+          }
+          else {
+            cell.commandToWorldPos(x, y);
+          }
+        }
+      });
+
+      this.enterCellMode = (cellEnt) => {
+        this.cameras.main.zoomTo(12, 1000, Phaser.Math.Easing.Cubic.In, true);
+        if (this.mode == "cell") return;
+        this.mode = "cell";
+        this.cellMode = new CellMode(this, cellEnt);
+      };
+
+      this.enterMoveMode = (cell) => {
+        if (this.mode == "move") return;
+        this.mode = "move";
+        this.cameras.main.setBackgroundColor("#221111")
+        this.cameras.main.zoomTo(1, 1000, Phaser.Math.Easing.Quartic.Out, true);
+        if (this.cellMode) {
+          this.cellMode.dispose();
+          this.cellMode = null;
+        }
+      };
+
+      this.isCellMode = () => { return this.mode == 'cell'; };
+
+      this.enterMoveMode();
+    }
+
+
+    function update(time, dtMs) {
+      for (let ent of this.entities) {
+        ent.update(dtMs);
+      }
+
+      updateFuzzes(this, time, dtMs);
+    }
+  </script>
+
+</body>
+
+</html>
