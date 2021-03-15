@@ -8,6 +8,16 @@
 <body>
 
   <script>
+
+    function toggleOrChange(currVal, goalVal) {
+      if (currVal == goalVal) {
+        return null;
+      }
+      else {
+        return goalVal;
+      }
+    }
+
     var config = {
       type: Phaser.AUTO,
       width: 1280,
@@ -26,6 +36,27 @@
       }
     };
 
+    function throb(scene, image, amount) {
+      if (amount === undefined) {
+        amount = 1.2;
+      }
+      if (image.__throbbing) return;
+      image.__throbbing = true;
+      const origScale = image.scale;
+      image.setScale(origScale * amount);
+      scene.tweens.add({
+        targets: image,
+        scale: origScale,
+        ease: 'Quadratic',
+        duration: 200,
+        delay: 0,
+        repeat: 0,
+        onComplete: () => {
+          image.__throbbing = false;
+        }
+      });
+    }
+
     var game = new Phaser.Game(config);
 
     function preload() {
@@ -36,6 +67,7 @@
       this.load.image('fuzz', 'fuzz.png');
       this.load.image('sugar', 'molecule.png');
       this.load.image('arrow', 'arrow.png');
+      this.load.image('endoret', 'endoret.png');
       this.load.image('particles/blue', 'particles/blue.png');
 
       this.load.audio('click', 'sounds/click.wav');
@@ -44,13 +76,62 @@
     }
 
     class Entity {
-      constructor(scene, gameObject) {
-        this.scene = scene;
+      constructor(gameObject) {
         this.gameObject = gameObject;
-        gameObject.entity = this;
+        if (gameObject !== null) {
+          this.gameObject.entity = this;
+        }
+        this.parentNode = null;
+        this.childNodes = new Set();
       }
 
-      onClick(scene) {
+      findRoot() {
+        if (this.parentNode === null) {
+          return this;
+        }
+        else {
+          return this.parentNode.findRoot();
+        }
+      }
+
+      hasChild(ent) {
+        return this.childNodes.has(ent);
+      }
+
+      setParent(newParent) {
+        if (this.parentNode === newParent) return;
+        if (this.parentNode !== null) {
+          console.assert(this.parentNode.hasChild(this));
+          this.parentNode.childNodes.delete(this);
+        }
+        this.parentNode = newParent;
+        if (newParent !== null) {
+          console.assert(!newParent.hasChild(this));
+          newParent.childNodes.add(this);
+        }
+      }
+
+      selfUpdate(dt) {
+      }
+
+      update(dt) {
+        this.selfUpdate(dt);
+        for (const child of this.childNodes) {
+          child.update(dt);
+        }
+      }
+
+      destroy() {
+        this.setParent(null);
+        if (this.gameObject) this.gameObject.destroy();
+        this.gameObject = null;
+        for (const child of this.childNodes) {
+          child.destroy();
+        }
+        this.childNodes.clear();
+      }
+
+      onClick() {
       }
 
       onPointerIn() {
@@ -65,20 +146,15 @@
     }
 
     class SugarEntity extends Entity {
-      constructor(scene, go) {
-        super(scene, go);
+      constructor(go) {
+        super(go);
       }
 
-      update(dt) {
+      selfUpdate(dt) {
         if (!this.gameObject) return;
       }
 
-      destroy() {
-        this.gameObject.destroy();
-        this.gameObject = null;
-      }
-
-      onClick(scene) {
+      onClick() {
         if (selectedCellEntity) {
           selectedCellEntity.targetMode = 'ent';
           selectedCellEntity.targetEnt = this;
@@ -99,8 +175,8 @@
     let selectedCellEntity = null;
 
     class CellEntity extends Entity {
-      constructor(scene, go) {
-        super(scene, go);
+      constructor(go) {
+        super(go);
         this.targetMode = 'none';
 
         this.prevVelX = 0;
@@ -128,15 +204,15 @@
         this.gameObject.setVelocity(this.prevVelX, this.prevVelY);
       }
 
-      onClick(scene) {
-        if (!this.scene.isCellMode()) {
-          scene.enterCellMode(this);
+      onClick() {
+        if (!this.gameObject.scene.isCellMode()) {
+          this.gameObject.scene.enterCellMode(this);
         }
       }
 
       onPointerIn() {
         if (!this.gameObject) return;
-        if (!this.scene.isCellMode()) {
+        if (!this.gameObject.scene.isCellMode()) {
           this.gameObject.setTint(0x88ff88);
         }
       }
@@ -144,7 +220,7 @@
       update(dtMs) {
         if (!this.gameObject) return;
 
-        if (this.scene.isCellMode()) {
+        if (this.gameObject.scene.isCellMode()) {
           this.gameObject.clearTint();
           this.gameObject.setVelocity(0, 0);
           this.gameObject.setAngularVelocity(0);
@@ -174,70 +250,180 @@
       }
     }
 
-    class ActionMenu {
-      constructor(scene) {
+    class NucleusMenu extends Entity {
+      constructor(scene, state, reportStateChange) {
+        super(null);
         this.scene = scene;
-        this.destroyables = [];
+        this.state = state;
+        this.reportStateChange = reportStateChange;
       }
 
-      create(x, y) {
+      onStateChanged() {
+        const state = this.state;
+
+        let x = this.state.cellX;
+        let y = this.state.cellY;
         x -= 40;
         y -= 10;
         const scale = 0.05;
 
         const textStyle = {
-          font: "32px Arial Black", fill: "#000",
-          stroke: "#fff", strokeThickness: 5
+          font: "32px Arial Black", fill: "#fff",
+          stroke: "#000", strokeThickness: 5
         };
 
         const scene = this.scene;
-        this.header = scene.add.text(x, y,
-          'Nucleus',
-          textStyle);
-        this.header.setScale(scale);
-        this.destroyables.push(this.header);
+        if (!this.header) {
+          this.header = new Entity(scene.add.text(x, y,
+            'Nucleus',
+            textStyle));
+          this.header.gameObject.setScale(scale);
+          this.header.setParent(this);
+        }
 
         y += 5;
 
-        this.erButton = scene.add.text(x, y,
-          'Endoplasmic Reticulum (ER)   [+]',
-          textStyle);
-        this.erButton.setScale(scale);
-        this.destroyables.push(this.erButton);
-      }
-
-      destroy() {
-        for (let obj of this.destroyables) {
-          obj.destroy();
+        if (!this.erButton) {
+          this.erButton = new Entity(scene.add.text(x, y,
+            'Endoplasmic Reticulum (ER)   [+]',
+            textStyle));
+          this.erButton.gameObject.setScale(scale);
+          this.erButton.setParent(this);
         }
-        this.destroyables = [];
+        if (this.state.endoRetShowing) {
+          this.erButton.gameObject.setTint(0x888888);
+          this.erButton.gameObject.disableInteractive();
+        }
+        else {
+          this.erButton.gameObject.setInteractive();
+          this.erButton.gameObject.on('pointerdown', () => {
+            throb(scene, this.erButton.gameObject, 1.05);
+            this.state.endoRetShowing = true;
+            this.reportStateChange();
+          });
+        }
       }
     }
 
-    class CellMode {
-      constructor(scene, cellEnt) {
+    class EndoRetMenu extends Entity {
+      constructor(scene, state, reportStateChange) {
+        super(null);
+        this.scene = scene;
+        this.state = state;
+        this.reportStateChange = reportStateChange;
+      }
+
+      onStateChanged() {
+        const state = this.state;
+
+        let x = this.state.cellX;
+        let y = this.state.cellY;
+        x -= 40;
+        y -= 10;
+        const scale = 0.05;
+
+        const textStyle = {
+          font: "32px Arial Black", fill: "#fff",
+          stroke: "#000", strokeThickness: 5
+        };
+
+        const scene = this.scene;
+        if (!this.header) {
+          this.header = new Entity(scene.add.text(x, y,
+            'Endoplasmic Reticulum (ER)',
+            textStyle));
+          this.header.gameObject.setScale(scale);
+          this.header.setParent(this);
+        }
+
+        y += 5;
+
+        if (!this.ribosomesButton) {
+          this.ribosomesButton = new Entity(scene.add.text(x, y,
+            'Ribosomes   [+]',
+            textStyle));
+          this.ribosomesButton.gameObject.setScale(scale);
+          this.ribosomesButton.setParent(this);
+        }
+        if (this.state.ribosomesShowing) {
+          this.ribosomesButton.gameObject.setTint(0x888888);
+          this.ribosomesButton.gameObject.disableInteractive();
+        }
+        else {
+          this.ribosomesButton.gameObject.setInteractive();
+          this.ribosomesButton.gameObject.on('pointerdown', () => {
+            throb(scene, this.ribosomesButton.gameObject, 1.05);
+            this.state.ribosomesShowing = true;
+            this.reportStateChange();
+          });
+        }
+      }
+    }
+
+    class CellMode extends Entity {
+
+      createMenuForName(name) {
+        if (name == 'nucleus') {
+          return new NucleusMenu(this.scene, this.state, () => this.onStateChanged());
+        }
+        else if (name == 'er') {
+          return new EndoRetMenu(this.scene, this.state, () => this.onStateChanged());
+        }
+        else {
+          throw `Bad menu name: ${name}`;
+        }
+      }
+
+      onStateChanged() {
+        const state = this.state;
+        const scene = this.scene;
+
+        if (this.state.activeMenuName != this.prevActiveMenuName) {
+          if (this.activeMenuEnt) {
+            this.activeMenuEnt.destroy();
+            this.activeMenuEnt = null;
+          }
+
+          if (this.state.activeMenuName !== null) {
+            this.activeMenuEnt = this.createMenuForName(this.state.activeMenuName);
+            this.activeMenuEnt.setParent(this);
+          }
+
+          this.prevActiveMenuName = this.state.activeMenuName;
+        }
+
+        if (this.activeMenuEnt) {
+          this.activeMenuEnt.onStateChanged();
+        }
+
+        if (state.endoRetShowing && !this.endoRet) {
+          let er = scene.add.image(state.cellX + 0, state.cellY + 3, 'endoret').setInteractive();
+          er.on('pointerdown', () => {
+            throb(scene, er);
+            this.state.activeMenuName = toggleOrChange(this.state.activeMenuName, 'er');
+            this.onStateChanged();
+
+          });
+          er.setScale(0.1);
+          this.endoRet = new Entity(er);
+          this.endoRet.setParent(this);
+        }
+        else if (!state.endoRetShowing && this.endoRet) {
+          this.endoRet.destroy();
+          this.endoRet = null;
+        }
+      }
+
+      constructor(scene, cellEnt, state) {
+        super(null);
         this.scene = scene;
         this.cellEntity = cellEnt;
-
-        this.destroyables = new Set();
+        this.state = state;
 
         let globalScale = 1.0;
 
-        let throb = (image) => {
-          scene.tweens.add({
-            targets: image,
-            scaleX: 0.11,
-            scaleY: 0.11,
-            _ease: 'Sine.easeInOut',
-            ease: 'Power2',
-            duration: 50,
-            delay: 0,
-            repeat: 0,
-            yoyo: true,
-            hold: 0,
-            repeatDelay: 0
-          });
-        };
+        this.state.cellX = cellEnt.gameObject.x;
+        this.state.cellY = cellEnt.gameObject.y;
 
         let cx = cellEnt.gameObject.x;
         let cy = cellEnt.gameObject.y;
@@ -245,10 +431,10 @@
           let mito = scene.add.image(cx - 10, cy + 10, 'mito').setInteractive();
           mito.setScale(0.1 * globalScale);
           mito.on('pointerdown', () => {
-            throb(mito);
+            throb(scene, mito);
             console.log('mito....');
           });
-          this.destroyables.add(mito);
+          new Entity(mito).setParent(this);
         }
         {
           let mito = scene.add.image(cx + 10, cy + 12, 'mito').setInteractive();
@@ -256,37 +442,24 @@
           mito.setAngle(-30);
           mito.on('pointerdown', () => {
             console.log('mito....');
-            throb(mito);
+            throb(scene, mito);
           });
-          this.destroyables.add(mito);
+          new Entity(mito).setParent(this);
         }
         {
           let nuc = scene.add.image(cx + 0, cy - 5, 'nuc').setInteractive();
           nuc.on('pointerdown', () => {
-            console.log('nucleus....');
-            throb(nuc);
+            throb(scene, nuc);
+            this.state.activeMenuName = toggleOrChange(this.state.activeMenuName, 'nucleus');
+            this.onStateChanged();
 
-            if (this.actionMenu) {
-              this.actionMenu.destroy();
-              this.destroyables.delete(this.actionMenu);
-              this.actionMenu = null;
-            }
-            else {
-              this.actionMenu = new ActionMenu(scene);
-              this.actionMenu.create(nuc.x, nuc.y);
-              this.destroyables.add(this.actionMenu);
-            }
           });
           nuc.setScale(0.1 * globalScale);
-          this.destroyables.add(nuc);
+          this.nucleus = new Entity(nuc);
+          this.nucleus.setParent(this);
         }
-      }
 
-      destroy() {
-        for (let obj of this.destroyables) {
-          obj.destroy();
-        }
-        this.destroyables.clear();
+        this.onStateChanged();
       }
     }
 
@@ -324,7 +497,7 @@
 
       createFuzz(this);
 
-      this.entities = [];
+      this.rootEntity = new Entity(null);
 
       var cellImage = this.physics.add.image(config.width / 2, config.height / 2, 'cell');
       cellImage.setCircle(32);
@@ -332,11 +505,11 @@
       cellImage.setBounce(1, 1);
       cellImage.setCollideWorldBounds(true);
 
-      let cell = new CellEntity(this, cellImage);
+      let cell = new CellEntity(cellImage);
       selectedCellEntity = cell;
       this.cameras.main.startFollow(cellImage);
       this.cameras.main.setLerp(0.1);
-      this.entities.push(cell)
+      cell.setParent(this.rootEntity);
 
       for (let i = 0; i < 5; i++) {
         var sugarImage = this.physics.add.image(Math.random() * config.width, Math.random() * config.height, 'sugar');
@@ -345,8 +518,8 @@
         sugarImage.setAngularVelocity((Math.random() - 0.5) * 180);
         sugarImage.setBounce(1, 1);
         sugarImage.setCollideWorldBounds(true);
-        let sugar = new SugarEntity(this, sugarImage);
-        this.entities.push(sugar);
+        let sugar = new SugarEntity(sugarImage);
+        sugar.setParent(this.rootEntity);
 
         this.physics.add.overlap(sugarImage, cellImage, (sugarImage, cellImage) => {
           explosionEmitter.explode(100, sugarImage.x, sugarImage.y);
@@ -438,7 +611,10 @@
         this.cameras.main.zoomTo(12, 1000, Phaser.Math.Easing.Cubic.In, true);
         if (this.mode == "cell") return;
         this.mode = "cell";
-        this.cellMode = new CellMode(this, cellEnt);
+        if (!this.cellModeState) {
+          this.cellModeState = {};
+        }
+        this.cellMode = new CellMode(this, cellEnt, this.cellModeState);
       };
 
       this.enterMoveMode = (cell) => {
@@ -459,9 +635,7 @@
 
 
     function update(time, dtMs) {
-      for (let ent of this.entities) {
-        ent.update(dtMs);
-      }
+      this.rootEntity.update(dtMs);
 
       updateFuzzes(this, time, dtMs);
     }
