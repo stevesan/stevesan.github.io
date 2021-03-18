@@ -61,6 +61,7 @@
 
     function preload() {
       this.load.setBaseURL('../assets');
+      this.load.image('back', 'back.png');
       this.load.image('cell', 'cell.png');
       this.load.image('mito', 'mito.png');
       this.load.image('nuc', 'nuc.png');
@@ -300,6 +301,12 @@
               throb(scene, buttonEnt.gameObject, 1.05);
               button['onClick']();
             });
+            text.on('pointerover', () => {
+              buttonEnt.gameObject.setTint(0xfa0);
+            });
+            // text.on('pointerout', () => {
+            // buttonEnt.gameObject.clearTint();
+            // });
             buttonEnt = new Entity(text);
             buttonEnt.setParent(this);
             this.buttonEnts.set(button['id'], buttonEnt);
@@ -311,7 +318,7 @@
           else {
             buttonEnt.gameObject.setInteractive();
           }
-          buttonEnt.gameObject.setText(button['label']());
+          buttonEnt.gameObject.setText(`[ ${button['label']()} ]`);
         }
       }
     }
@@ -561,6 +568,17 @@
           this.golgi.setParent(this);
         }
 
+        {
+          let backBtn = scene.add.image(cx - 45, cy - 20, 'back').setInteractive();
+          backBtn.on('pointerdown', () => {
+            throb(scene, backBtn);
+            this.scene.enterMoveMode();
+          });
+          backBtn.setScale(0.1 * globalScale);
+          this.backBtn = new Entity(backBtn);
+          this.backBtn.setParent(this);
+        }
+
         this.onStateChanged();
       }
     }
@@ -701,10 +719,7 @@
 
         if (!clickedAny) {
           // Clicked bg
-          if (this.isCellMode()) {
-            this.enterMoveMode();
-          }
-          else {
+          if (!this.isCellMode()) {
             cell.commandToWorldPos(x, y);
           }
         }
@@ -720,7 +735,7 @@
         this.cellMode = new CellMode(this, cellEnt, this.cellModeState);
       };
 
-      this.enterMoveMode = (cell) => {
+      this.enterMoveMode = () => {
         if (this.mode == "move") return;
         this.mode = "move";
         this.cameras.main.setBackgroundColor("#221111")
