@@ -371,7 +371,7 @@
       getTitle() { return 'Endoplasmic Reticulum (ER)'; }
 
       getButtons() {
-        console.assert(this.state.numRibosomes <= MAX_RIBOSOMES);
+        console.assert((this.state.numRibosomes ?? 0) <= MAX_RIBOSOMES);
 
         const btns = [
           {
@@ -469,16 +469,48 @@
         }
         for (let i = 0; i < this.riboEnts.length; i++) {
           if (i < numRibos && this.riboEnts[i] === null) {
-            let ribo = scene.add.image(state.cellX - 10 + 2 * i, state.cellY + 2 * (i % 2), 'ribosome');
+            let ribo = scene.add.image(state.cellX - 10 + 2 * i, state.cellY + 3 * (i % 2) + 2, 'ribosome');
             ribo.setScale(0.1);
             this.riboEnts[i] = new Entity(ribo);
             this.riboEnts[i].setParent(this);
+            scene.tweens.add({
+              targets: ribo,
+              x: ribo.x + (2 * Math.random() - 1) * 2,
+              y: ribo.y + (2 * Math.random() - 1) * 2,
+              ease: 'Quadratic',
+              duration: 500,
+              delay: 0,
+              repeat: 0,
+            });
           }
           else if (i >= numRibos && this.riboEnts[i] !== null) {
             this.riboEnts[i].destroy();
             this.riboEnts[i] = null;
           }
         }
+
+        const numCentros = this.state.numCentrosomes ?? 0;
+        const prevNumCentros = this.prevNumCentros ?? 0;
+        if (numCentros > prevNumCentros) {
+          let img = scene.add.image(state.cellX, state.cellY, 'ribosome');
+          img.setScale(0.1);
+          img.setTint(0x000);
+          if (this.centroEnt) {
+            this.centroEnt.destroy();
+          }
+          this.centroEnt = new Entity(img);
+          this.centroEnt.setParent(this);
+
+          scene.tweens.add({
+            targets: img,
+            x: state.cellX + 30,
+            ease: 'Quadratic',
+            duration: 1000,
+            delay: 0,
+            repeat: 0,
+          });
+        }
+        this.prevNumCentros = numCentros;
       }
 
       constructor(scene, cellEnt, state) {
