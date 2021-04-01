@@ -59,7 +59,7 @@ class CellMode extends Entity {
       this.endoRet = null;
     }
 
-    const numRibos = currState.numRibosomes ?? 0;
+    const numRibos = currState.numRibosomes;
     if (this.riboEnts === undefined) {
       this.riboEnts = [];
     }

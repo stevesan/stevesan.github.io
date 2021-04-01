@@ -62,16 +62,35 @@ class TutorialText extends Entity {
 
   onStateChanged() {
     console.assert(!this.destroyed);
-    if (!currState.builtER) {
-      if (currState.numSugars == 0) {
-        this.setText('Tap the sugar to eat it. Go on. You know you want to.');
+    if (currState.numSugars == 0) {
+      this.setText('Tap a sugar to eat it. Go on. You know you want to.');
+    }
+    else {
+      if (!this.mainScene.isCellMode()) {
+        this.setText('Yum! Now click your cell to zoom in.');
       }
       else {
-        if (!this.mainScene.isCellMode()) {
-          this.setText('Yum! Now click your cell to zoom in.');
+        if (!currState.builtER) {
+          if (currState.activeMenuName != 'nucleus') {
+            this.setText('Now tap the nucleus. It’s just right there.');
+          }
+          else {
+            this.setText('Create the ER!');
+          }
         }
         else {
-          this.setText('Now tap the nucleus. It’s just right there.');
+          console.log('fdsfds');
+          if (currState.activeMenuName != 'er') {
+            this.setText('Tap the Endo… Endo-what now? Endoplasmic Ret--wow ok that’s a lot.');
+          }
+          else {
+            if (currState.numRibosomes == 0) {
+              this.setText('Build some ribosomes!');
+            }
+            else if (currState.numRibosomes < MAX_RIBOSOMES) {
+              this.setText('Keep going. Make ribo-some more!');
+            }
+          }
         }
       }
     }

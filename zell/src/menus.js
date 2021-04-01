@@ -6,6 +6,8 @@ class BaseMenu extends Entity {
     this.state.addListener(this, () => this.onStateChanged());
 
     this.buttonEnts = new Map();
+
+    this.onStateChanged();
   }
 
   destroy() {
@@ -18,7 +20,7 @@ class BaseMenu extends Entity {
   getButtons() { return []; }
 
   onStateChanged() {
-    const state = this.state;
+    console.assert(!this.destroyed);
 
     let cam = this.scene.cameras.main;
     const W = cam.displayWidth;
@@ -128,15 +130,15 @@ class EndoRetMenu extends BaseMenu {
   getTitle() { return 'Endoplasmic Reticulum (ER)'; }
 
   getButtons() {
-    console.assert((this.state.numRibosomes ?? 0) <= MAX_RIBOSOMES);
+    console.assert(this.state.numRibosomes <= MAX_RIBOSOMES);
 
     const btns = [
       {
         id: 'addRibos',
-        label: () => `Add Ribosome (${this.state.numRibosomes ?? 0}/${MAX_RIBOSOMES})`,
-        enabled: () => (this.state.numRibosomes ?? 0) < MAX_RIBOSOMES && currState.numSugars > 0,
+        label: () => `Add Ribosome (${this.state.numRibosomes}/${MAX_RIBOSOMES})`,
+        enabled: () => this.state.numRibosomes < MAX_RIBOSOMES && currState.numSugars > 0,
         onClick: () => {
-          this.state.numRibosomes = (this.state.numRibosomes ?? 0) + 1;
+          this.state.numRibosomes = this.state.numRibosomes + 1;
           this.state.numSugars--;
           this.state.onChange();
         }
