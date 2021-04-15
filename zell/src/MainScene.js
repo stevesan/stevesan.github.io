@@ -65,6 +65,9 @@ class MainScene extends Phaser.Scene {
     this.load.audio('create', 'sounds/create.wav');
     this.load.audio('powerup', 'sounds/powerup.wav');
     this.load.audio('bgmusic', 'music/ftl-title-theme.mp3');
+
+    // menu graphics TODO move this into menus..?
+    this.load.image('addbutton', 'addbutton.png');
   }
 
   create() {

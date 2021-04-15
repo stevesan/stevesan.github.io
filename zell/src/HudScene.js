@@ -34,7 +34,7 @@ class HudScene extends Phaser.Scene {
   onStateChanged() {
     this.sugarText.text = 'SUGAR: ';
     for (let i = 0; i < currState.numSugars; i++) {
-      this.sugarText.text += 'O';
+      this.sugarText.text += '*';
     }
   }
 }

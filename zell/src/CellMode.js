@@ -90,6 +90,7 @@ class CellMode extends Entity {
       }
     }
     if (createdRibos) {
+      // TODO should move the sounds out, cuz they play everytime you enter cell mode.
       scene.createSound.play();
     }
 
