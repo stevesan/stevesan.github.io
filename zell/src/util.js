@@ -27,3 +27,7 @@ function toggleOrChange(currVal, goalVal) {
     return goalVal;
   }
 }
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}

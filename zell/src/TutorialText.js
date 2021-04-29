@@ -45,6 +45,15 @@ class TutorialText extends Entity {
     currState.removeListener(this);
   }
 
+  async animTextTo(text) {
+    if (text == this.prevAnimTargetText) return;
+    this.prevAnimTargetText = text;
+    for (let i = 0; i < text.length; i++) {
+      this.setText(text.substring(0, i + 1));
+      await sleep(40);
+    }
+  }
+
   setText(text) {
     const textObj = this.mainText.gameObject;
     textObj.text = text;
@@ -57,38 +66,37 @@ class TutorialText extends Entity {
   }
 
   update() {
-    // this.setText('test \n test\n fdsjkflsdjfkldsjfklsd');
   }
 
   onStateChanged() {
     console.assert(!this.destroyed);
     if (currState.numSugars == 0) {
-      this.setText('Tap a sugar to eat it. Go on. You know you want to.');
+      this.animTextTo('Tap a sugar to eat it. Go on. You know you want to.');
     }
     else {
       if (!this.mainScene.isCellMode()) {
-        this.setText('Yum! Now click your cell to zoom in.');
+        this.animTextTo('Yum! Now click your cell to zoom in.');
       }
       else {
         if (!currState.builtER) {
           if (currState.activeMenuName != 'nucleus') {
-            this.setText('Now tap the nucleus. It’s just right there.');
+            this.animTextTo('Now tap the nucleus. It’s just right there.');
           }
           else {
-            this.setText('Create the ER!');
+            this.animTextTo('Create the ER!');
           }
         }
         else {
           console.log('fdsfds');
           if (currState.activeMenuName != 'er') {
-            this.setText('Tap the Endo… Endo-what now? Endoplasmic Ret--wow ok that’s a lot.');
+            this.animTextTo('Tap the Endo… Endo-what now? Endoplasmic Ret--wow ok that’s a lot.');
           }
           else {
             if (currState.numRibosomes == 0) {
-              this.setText('Build some ribosomes!');
+              this.animTextTo('Build some ribosomes!');
             }
             else if (currState.numRibosomes < MAX_RIBOSOMES) {
-              this.setText('Keep going. Make ribo-some more!');
+              this.animTextTo('Keep going. Make ribo-some more!');
             }
           }
         }
