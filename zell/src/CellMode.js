@@ -135,6 +135,15 @@ class CellMode extends Entity {
     let cx = cellEnt.gameObject.x;
     let cy = cellEnt.gameObject.y;
 
+    function setupHoverHighlight(image) {
+      image.on('pointerover', () => {
+        image.setTint(0xaaaaff);
+      });
+      image.on('pointerout', () => {
+        image.clearTint();
+      });
+    }
+
     for (let dxdy of [[-10, 10], [10, 12]]) {
       let mito = scene.add.image(cx + dxdy[0], cy + dxdy[1], 'mito').setInteractive();
       mito.setScale(0.1 * globalScale);
@@ -143,6 +152,7 @@ class CellMode extends Entity {
         currState.activeMenuName = toggleOrChange(currState.activeMenuName, 'mito');
         currState.onChange();
       });
+      setupHoverHighlight(mito);
       new Entity(mito).setParent(this);
     }
     {
@@ -152,6 +162,7 @@ class CellMode extends Entity {
         currState.activeMenuName = toggleOrChange(currState.activeMenuName, 'nucleus');
         currState.onChange();
       });
+      setupHoverHighlight(nuc);
       nuc.setScale(0.1 * globalScale);
       this.nucleus = new Entity(nuc);
       this.nucleus.setParent(this);
@@ -163,13 +174,20 @@ class CellMode extends Entity {
         currState.activeMenuName = toggleOrChange(currState.activeMenuName, 'golgi');
         currState.onChange();
       });
+      setupHoverHighlight(golgi);
       golgi.setScale(0.1 * globalScale);
       this.golgi = new Entity(golgi);
       this.golgi.setParent(this);
     }
 
     {
-      let backBtn = scene.add.image(cx - 45, cy + 20, 'back').setInteractive();
+      const textStyle = {
+        font: "36px ProggySquare", fill: "#fff",
+        stroke: "#000", strokeThickness: 0,
+        shadow: { offsetX: 2, offsetY: 2, stroke: false, fill: true }
+      };
+
+      let backBtn = scene.add.text(cx - 45, cy + 20, 'ZOOM OUT', textStyle).setInteractive();
       backBtn.on('pointerdown', () => {
         throb(scene, backBtn);
         this.scene.enterMoveMode();

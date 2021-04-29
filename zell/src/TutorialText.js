@@ -49,6 +49,8 @@ class TutorialText extends Entity {
     if (text == this.prevAnimTargetText) return;
     this.prevAnimTargetText = text;
     for (let i = 0; i < text.length; i++) {
+      // Did another anim start before we finished? Yield to that.
+      if (this.prevAnimTargetText != text) return;
       this.setText(text.substring(0, i + 1));
       await sleep(40);
     }
@@ -71,7 +73,12 @@ class TutorialText extends Entity {
   onStateChanged() {
     console.assert(!this.destroyed);
     if (currState.numSugars == 0) {
-      this.animTextTo('Tap a sugar to eat it. Go on. You know you want to.');
+      if (this.mainScene.isCellMode()) {
+        this.animTextTo('Need more sugar! Tap "ZOOM OUT" at the bottom.');
+      }
+      else {
+        this.animTextTo('Tap a sugar to eat it. Go on. You know you want to.');
+      }
     }
     else {
       if (!this.mainScene.isCellMode()) {
@@ -87,7 +94,6 @@ class TutorialText extends Entity {
           }
         }
         else {
-          console.log('fdsfds');
           if (currState.activeMenuName != 'er') {
             this.animTextTo('Tap the Endo… Endo-what now? Endoplasmic Ret--wow ok that’s a lot.');
           }
