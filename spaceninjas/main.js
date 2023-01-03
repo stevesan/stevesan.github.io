@@ -88,9 +88,11 @@ class GameScene {
     /** @type {Array<Phaser.TilemapLayer} */
     this.tilemapLayers = [];
 
+    let FONT = 'Courier New';
+
     this.hudText = game.add.text(game.camera.x, game.camera.y + 15, 'dd',
       {
-        font: 'Courier New',
+        font: FONT,
         fontSize: '24px',
         fill: '#fff',
         boundsAlignH: 'center'
@@ -100,7 +102,7 @@ class GameScene {
     this.hudText.fixedToCamera = true;
 
     this.wasd = game.add.text(game.world.width / 2 - 100, game.world.height / 2 + 50,
-      'Tap WASD to fly\nDouble-tap to dash', { font: 'Courier New', fontSize: '24px', fill: '#fff' });
+      'Tap WASD to fly\nDouble-tap to dash', { font: FONT, fontSize: '24px', fill: '#fff' });
     this.wasd.setShadow(2, 2, 'rgba(0,0,0,0.5)', 2);
 
     this.spawnScene(LEVEL_TILEMAP_KEYS[this.levelIndex]);
@@ -521,7 +523,7 @@ function render() {
     }
   }
 
-  scene.enemies.forEach(e => game.debug.body(e));
+  // scene.enemies.forEach(e => game.debug.body(e));
 }
 
 window.onload = function () {
