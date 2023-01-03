@@ -90,6 +90,8 @@ class GameScene {
 
     let FONT = 'Courier New';
 
+    console.log(`game camera w/h = ${game.camera.width}x${game.camera.height}`);
+
     this.hudText = game.add.text(game.camera.x, game.camera.y + 15, 'dd',
       {
         font: FONT,
@@ -107,7 +109,7 @@ class GameScene {
 
     this.spawnScene(LEVEL_TILEMAP_KEYS[this.levelIndex]);
 
-    this.setupKeys();
+    this.setupInput();
   }
 
   /**
@@ -226,7 +228,7 @@ class GameScene {
     }
   }
 
-  setupKeys() {
+  setupInput() {
     const game = this.phaserGame;
     const keys = game.input.keyboard.addKeys({
       goUp: Phaser.Keyboard.W,
@@ -239,6 +241,52 @@ class GameScene {
     keys.goLeft.onDown.add(() => this.onDirPressed_(1));
     keys.goDown.onDown.add(() => this.onDirPressed_(2));
     keys.goRight.onDown.add(() => this.onDirPressed_(3));
+
+    game.input.onTap.add((pointer, doubleTap) => this.onTap(pointer, doubleTap));
+  }
+
+  /**
+   * 
+   * @param {Phaser.Pointer} pointer 
+   * @param {boolean} doubleTap 
+   */
+  onTap(pointer, doubleTap) {
+    const pt = new Phaser.Point(pointer.x, pointer.y);
+    const camcenter = new Phaser.Point(game.camera.width / 2, game.camera.height / 2);
+    const offset = Phaser.Point.subtract(pt, camcenter);
+    // flip Y, cuz i guess pointer Y is inverted
+    offset.y *= -1;
+    const radians = offset.atan(false);
+    console.log(`${offset.x}, ${offset.y}, angle=${radians}`);
+    if (radians < 0) {
+      if (radians / -Math.PI <= 0.25) {
+        // right
+        this.onDirPressed_(3);
+      }
+      else if (radians / -Math.PI <= 0.75) {
+        // down
+        this.onDirPressed_(2);
+      }
+      else {
+        // left
+        this.onDirPressed_(1);
+      }
+    }
+    else {
+      if (radians / Math.PI <= 0.25) {
+        // right
+        this.onDirPressed_(3);
+      }
+      else if (radians / Math.PI <= 0.75) {
+        // up
+        this.onDirPressed_(0);
+      }
+      else {
+        // left
+        this.onDirPressed_(1);
+      }
+
+    }
   }
 
   onDirPressed_(dir) {
