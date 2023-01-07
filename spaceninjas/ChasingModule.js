@@ -20,6 +20,10 @@ class ChasingModule {
     this.body.velocity.copyFrom(velocity);
   }
 
+  reset() {
+    this.state = 'chase';
+  }
+
   update() {
     const blockedDir = getBlockedDir(this.body);
     const blocked = blockedDir != null;

@@ -1,9 +1,22 @@
-const W = 512;
-const H = 544;
-const S = 1;
 
-const CANVAS_PIXELS_PER_SPRITE_PIXEL = 2;
-const CPPSP = CANVAS_PIXELS_PER_SPRITE_PIXEL;
+// iPhone8 aspect
+const WIDTH_BY_HEIGHT = 750 / 1334;
+
+function getFittedSize() {
+  const portWidth = document.documentElement.clientWidth;
+  const portHeight = document.documentElement.clientHeight;
+
+  const widthIfFillHeight = portHeight * WIDTH_BY_HEIGHT;
+  const heightIfFillWidth = portWidth / WIDTH_BY_HEIGHT;
+
+  if (widthIfFillHeight > portWidth) {
+    return [portWidth, heightIfFillWidth];
+  }
+  else {
+    return [widthIfFillHeight, portHeight];
+  }
+}
+
 
 // Used for run-time mod of debug flags. For example, if you want to debug-draw
 // the player and coins, open the Chrome console and run "DEBUG.draws = ['player', 'coins']"
@@ -90,8 +103,6 @@ class GameScene {
 
     let FONT = 'Courier New';
 
-    console.log(`game camera w/h = ${game.camera.width}x${game.camera.height}`);
-
     this.hudText = game.add.text(game.camera.x, game.camera.y + 15, 'dd',
       {
         font: FONT,
@@ -110,6 +121,8 @@ class GameScene {
     this.spawnScene(LEVEL_TILEMAP_KEYS[this.levelIndex]);
 
     this.setupInput();
+
+    this.countdownTimer = 0;
   }
 
   /**
@@ -360,9 +373,10 @@ class GameScene {
     return count;
   }
 
-  countdownToLevel(ms) {
+  enterCountdownToLevel(ms) {
     this.wasd.visible = this.levelIndex == 0;
     this.state = 'countdown';
+    this.countdownTimer = ms / 1000.0;
     this.phaserGame.stage.backgroundColor = waitBgColor;
     this.spawnScene(LEVEL_TILEMAP_KEYS[this.levelIndex]);
     this.hudText.text = 'Get ready..'
@@ -374,6 +388,10 @@ class GameScene {
   }
 
   onEnemyDeath(enemy) {
+    deathFx.x = enemy.x;
+    deathFx.y = enemy.y;
+    deathFx.minSpeed = deathFx.maxSpeed = 10000;
+    deathFx.start(true, 2000, null, 10);
     hitPause(180);
     addShake(8, 8);
     this.adHocUpdaters.add(1000,
@@ -418,7 +436,7 @@ class GameScene {
         triggerSlowMo(5, ms);
         this.levelIndex++;
         this.phaserGame.time.events.add(ms, () => {
-          this.countdownToLevel(1500);
+          this.enterCountdownToLevel(1500);
         });
       }
       else if (this.player.getHealth() <= 0) {
@@ -430,7 +448,7 @@ class GameScene {
         addShake(10, 10);
         triggerSlowMo(5, ms);
         this.phaserGame.time.events.add(ms, () => {
-          this.countdownToLevel(0);
+          this.enterCountdownToLevel(0);
         })
       }
     }
@@ -463,7 +481,7 @@ let game;
 let scene;
 
 /** @type {Phaser.Particles.Arcade.Emitter} */
-var scoreFx;
+var deathFx;
 
 var shakeX = 0;
 var shakeY = 0;
@@ -474,9 +492,9 @@ function create() {
   PRELOAD_CREATE_LIST.forEach(asset => asset.create());
   game.physics.startSystem(Phaser.Physics.ARCADE);
 
-  // scoreFx = game.add.emitter(0, 0, 100);
-  // scoreFx.makeParticles('star');
-  // scoreFx.gravity = 200;
+  deathFx = game.add.emitter(0, 0, 100);
+  deathFx.makeParticles('star');
+  deathFx.gravity = 200;
 
   scene = new GameScene(game);
 
@@ -571,11 +589,12 @@ function render() {
     }
   }
 
-  // scene.enemies.forEach(e => game.debug.body(e));
+  scene.enemies.forEach(e => game.debug.body(e));
 }
 
 window.onload = function () {
-  game = new Phaser.Game(W * S, H * S, Phaser.AUTO, 'phaserOutput', {
+  const size = getFittedSize();
+  game = new Phaser.Game(size[0], size[1], Phaser.AUTO, 'phaserOutput', {
     preload: preload,
     create: create,
     update: update,
