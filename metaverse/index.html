@@ -274,12 +274,15 @@ function animate() {
     history.replaceState(null, '', '?' + next.toString());
   }
   const resolvedEntry = chunkResolvedUrl.get(`${curCX},${curCY}`);
-  const resolvedUrl = !chunkResolvedUrl.has(`${curCX},${curCY}`) ? '(loading…)'
-                    : resolvedEntry === null                      ? '(not found)'
-                    : resolvedEntry;
-  const urlHtml = resolvedEntry
-    ? `<a href="${resolvedEntry}" target="_blank" style="color:inherit">${resolvedEntry}</a>`
-    : resolvedUrl;
+  const domain = `${curCX}-${curCY}.xyz`;
+  let urlHtml;
+  if (!chunkResolvedUrl.has(`${curCX},${curCY}`)) {
+    urlHtml = '(loading…)';
+  } else if (resolvedEntry === null) {
+    urlHtml = `Not found. Want to contribute this chunk? Buy <b>${domain}</b> and serve <b>chunk.gltf</b> from it.\nThis metaverse browser will try to load <b>${domain}/chunk.gltf</b>`;
+  } else {
+    urlHtml = `<a href="${resolvedEntry}" target="_blank" style="color:inherit">${resolvedEntry}</a>`;
+  }
   hud.innerHTML =
     `xyz: ${p.x.toFixed(1)}, ${p.y.toFixed(1)}, ${p.z.toFixed(1)}\n` +
     `chunk: ${curCX}, ${curCY}  —  ${urlHtml}`;
